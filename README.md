@@ -4,7 +4,7 @@ imdbphp
 PHP library for retrieving film and TV information from IMDb.
 Retrieve most of the information you can see on IMDb including films, TV series, TV episodes, people.
 Search for titles on IMDb, including filtering by type (film, tv series, etc).
-Download film posters and actor images.
+Download film posters and actor images...
 
 
 Quick Start
