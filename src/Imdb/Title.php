@@ -447,7 +447,7 @@ EOF;
 
  /**
  * Aspect Ratio of movie screen
- * @return string ratio e.g. "2.35 : 1" or "" if not found
+ * @return string ratio e.g. "2.35 : 1" or "" if missing
  */
 public function aspect_ratio()
 {
@@ -456,19 +456,23 @@ public function aspect_ratio()
     }
 
     $xpath = $this->getXpathPage("Title");
-
-    // Нов IMDb DOM 2024/2025
-    $extract = $xpath->query("//li[@data-testid='title-techspec_aspectratio']//li[contains(@class,'ipc-metadata-list-item__list-content-item')]");
-
-    if ($extract && $extract->item(0) !== null) {
-        $this->aspectratio = trim($extract->item(0)->nodeValue);
-        return $this->aspectratio;
+    if (!$xpath) {
+        return "";
     }
 
-    // Резервен (стар IMDb DOM)
-    $extractOld = $xpath->query("//li[@data-testid='title-techspec_aspectratio']//span");
-    if ($extractOld && $extractOld->item(0) !== null) {
-        $this->aspectratio = trim($extractOld->item(0)->nodeValue);
+    // IMDb нов layout – търсим елемент по "Aspect ratio"
+    $nodes = $xpath->query("//li[.//span[text()='Aspect ratio']]/div/ul/li");
+
+    if ($nodes && $nodes->item(0)) {
+        $ratio = trim($nodes->item(0)->nodeValue);
+        $this->aspectratio = $ratio;
+        return $ratio;
+    }
+
+    // fallback към стария layout (ако IMDb пак сменят HTML)
+    $nodes = $xpath->query("//li[@data-testid='title-techspec_aspectratio']//span[contains(@class,'ipc-metadata-list-item__list-content-item')]");
+    if ($nodes && $nodes->item(0)) {
+        $this->aspectratio = trim($nodes->item(0)->nodeValue);
         return $this->aspectratio;
     }
 
