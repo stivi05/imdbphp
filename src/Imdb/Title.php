@@ -1706,16 +1706,19 @@ private function matchImdbId($href)
         $role = $roleNode ? trim($roleNode->nodeValue) : null;
 
         // Снимка (в avatar блока преди линка)
-        $imgNode = $xpath->query(".//img[@class='ipc-image']", $actorNode->parentNode->parentNode)->item(0);
-        $thumb = $imgNode ? trim($imgNode->getAttribute("src")) : "";
-        $photo = ($thumb && strpos($thumb, '._V1')) ? preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $thumb) : "";
+        //$imgNode = $xpath->query(".//img[@class='ipc-image']", $actorNode->parentNode->parentNode)->item(0);
+        //$thumb = $imgNode ? trim($imgNode->getAttribute("src")) : "";
+        //$photo = ($thumb && strpos($thumb, '._V1')) ? preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $thumb) : "";
+        // Снимка временно изключена
+         $thumb = "";
+         $photo = "";
 
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
             'role' => $role,
-            'thumb' => $thumb,
-            'photo' => $photo,
+            'thumb' => '',
+            'photo' => '',
             'credited' => true,
             'name_alias' => null,
             'role_episodes' => null,
