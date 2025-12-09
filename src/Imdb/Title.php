@@ -1667,121 +1667,76 @@ private function matchImdbId($href)
      * @see IMDB page /fullcredits
      */
     public function cast($short = false)
-    {
-        if ($short) {
-            return $this->cast_short();
-        }
+{
+    if ($short) {
+        return $this->cast_short();
+    }
 
-        if (!empty($this->credits_cast)) {
-            return $this->credits_cast;
-        }
-
-        $page = $this->getPage("Credits");
-
-        if (empty($page)) {
-            return array(); // no such page
-        }
-
-        $cast_rows = $this->get_table_rows_cast($page, "Cast", "itemprop");
-        foreach ($cast_rows as $cast_row) {
-            $cels = $this->get_row_cels($cast_row);
-            if (4 !== count($cels)) {
-                continue;
-            }
-            $dir = array(
-                'imdb' => null,
-                'name' => null,
-                'name_alias' => null,
-                'credited' => true,
-                'role' => null,
-                'role_episodes' => null,
-                'role_start_year' => null,
-                'role_end_year' => null,
-                'role_other' => array(),
-                'thumb' => null,
-                'photo' => null
-            );
-            $dir["imdb"] = preg_replace('!.*href="/name/nm(\d+)/.*!ims', '$1', $cels[1]);
-            $dir["name"] = trim(strip_tags($cels[1]));
-            if (empty($dir['name'])) {
-                continue;
-            }
-
-
-            $role_cell = trim(strip_tags(str_replace('&nbsp;', '', $cels[3])));
-            if ($role_cell) {
-                $role_lines = explode("\n", $role_cell);
-                // The first few lines (before any lines starting with brackets) are the role name
-                while ($role_line = array_shift($role_lines)) {
-                    $role_line = trim($role_line);
-                    if (!$role_line) {
-                        continue;
-                    }
-                    if ($role_line[0] == '(' || preg_match('@\d+ episode@', $role_line)) {
-                        // Start of additional information, stop looking for the role name
-                        array_unshift($role_lines, $role_line);
-                        break;
-                    }
-                    if ($dir['role']) {
-                        $dir['role'] .= ' ' . $role_line;
-                    } else {
-                        $dir['role'] = $role_line;
-                    }
-                }
-
-                // Trim off the funny / ... role added on tv shows where an actor has multiple characters
-                $dir['role'] = str_replace(' / ...', '', (string) $dir['role']);
-
-                $cleaned_role_cell = implode("\n", $role_lines);
-
-                if (preg_match("#\(as (.+?)\)#s", $cleaned_role_cell, $matches)) {
-                    $dir['name_alias'] = $matches[1];
-                    $cleaned_role_cell = preg_replace("#\(as (.+?)\)#s", '', $cleaned_role_cell);
-                }
-
-                if (preg_match("#(\d+) episodes?, (\d+)(?:-(\d+))?#", $cleaned_role_cell, $matches)) {
-                    $dir['role_episodes'] = (int)$matches[1];
-                    $dir['role_start_year'] = (int)$matches[2];
-                    if (isset($matches[3])) {
-                        $dir['role_end_year'] = (int)$matches[3];
-                    } else {
-                        // If no end year, make the same as start year
-                        $dir['role_end_year'] = (int)$matches[2];
-                    }
-                    $cleaned_role_cell = preg_replace(
-                        "#\((\d+) episodes?, (\d+)(?:-(\d+))?\)#",
-                        '',
-                        $cleaned_role_cell
-                    );
-                }
-
-                // Extract uncredited and other bits from their brackets after the role
-                if (preg_match_all("#\((.+?)\)#", $cleaned_role_cell, $matches)) {
-                    foreach ($matches[1] as $role_info) {
-                        $role_info = trim($role_info);
-                        if ($role_info == 'uncredited') {
-                            $dir['credited'] = false;
-                        } else {
-                            $dir['role_other'][] = $role_info;
-                        }
-                    }
-                }
-            }
-
-
-            if (preg_match('!.*<img [^>]*loadlate="([^"]+)".*!ims', $cels[0], $match)) {
-                $dir["thumb"] = $match[1];
-                if (strpos($dir["thumb"], '._V1')) {
-                    $dir["photo"] = preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $dir["thumb"]);
-                }
-            } else {
-                $dir["thumb"] = $dir["photo"] = "";
-            }
-
-            $this->credits_cast[] = $dir;
-        }
+    if (!empty($this->credits_cast)) {
         return $this->credits_cast;
     }
+
+    $page = $this->getPage("Title");
+    if (empty($page)) {
+        return [];
+    }
+
+    $dom = new \DOMDocument();
+    @$dom->loadHTML($page);
+    $xpath = new \DOMXPath($dom);
+
+    // Нов селектор за актьорите
+    $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
+
+    $seen = [];
+    foreach ($nodes as $node) {
+        $dir = [
+            'imdb' => null,
+            'name' => null,
+            'name_alias' => null,
+            'credited' => true,
+            'role' => null,
+            'role_episodes' => null,
+            'role_start_year' => null,
+            'role_end_year' => null,
+            'role_other' => [],
+            'thumb' => "",
+            'photo' => ""
+        ];
+
+        // Име + IMDb ID
+        $actorNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $node)->item(0);
+        if (!$actorNode) {
+            continue;
+        }
+        $dir['imdb'] = $this->matchImdbId($actorNode->getAttribute("href"));
+        $dir['name'] = trim($actorNode->nodeValue);
+
+        if (empty($dir['name']) || isset($seen[$dir['imdb']])) {
+            continue;
+        }
+        $seen[$dir['imdb']] = true;
+
+        // Роля
+        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span[1]", $node)->item(0);
+        if ($roleNode) {
+            $dir['role'] = trim($roleNode->nodeValue);
+        }
+
+        // Снимка
+        $imgNode = $xpath->query(".//img[@class='ipc-image']", $node)->item(0);
+        if ($imgNode && $imgNode->getAttribute("src")) {
+            $dir['thumb'] = trim($imgNode->getAttribute("src"));
+            if (strpos($dir['thumb'], '._V1')) {
+                $dir['photo'] = preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $dir['thumb']);
+            }
+        }
+
+        $this->credits_cast[] = $dir;
+    }
+
+    return $this->credits_cast;
+}
 
     protected function cast_short()
     {
