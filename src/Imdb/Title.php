@@ -1569,32 +1569,41 @@ EOF;
      * @see IMDB page /fullcredits
      */
     public function director()
-    {
-        if (!empty($this->credits_director)) {
-            return $this->credits_director;
-        }
-        $directorRows = $this->get_table_rows($this->getPage('Credits'), "Directed by");
-        if (!$directorRows) {
-            $directorRows = $this->get_table_rows($this->getPage('Credits'), "Series Directed by");
-        }
-        foreach ($directorRows as $directorRow) {
-            $cells = $this->get_row_cels($directorRow);
-            if (isset($cells[0])) {
-                if (isset($cells[2])) {
-                    $role = trim(strip_tags($cells[2]));
-                } else {
-                    $role = null;
-                }
-
-                $this->credits_director[] = array(
-                    'imdb' => $this->get_imdbname($cells[0]),
-                    'name' => trim(strip_tags($cells[0])),
-                    'role' => $role ?: null
-                );
-            }
-        }
+{
+    if (!empty($this->credits_director)) {
         return $this->credits_director;
     }
+
+    $page = $this->getPage('Title');
+    $dom = new \DOMDocument();
+    @$dom->loadHTML($page);
+    $xpath = new \DOMXPath($dom);
+
+    // New selector for directors
+    $nodes = $xpath->query("//a[@data-testid='title-pc-principal-credit']");
+
+    foreach ($nodes as $node) {
+        $name = trim($node->textContent);
+        $href = $node->getAttribute('href');
+        $imdbId = $this->matchImdbId($href);
+
+        $this->credits_director[] = [
+            'imdb' => $imdbId,
+            'name' => $name,
+            'role' => null
+        ];
+    }
+
+    return $this->credits_director;
+}
+
+private function matchImdbId($href)
+{
+    if (preg_match('/nm\d+/', $href, $matches)) {
+        return $matches[0];
+    }
+    return null;
+}
 
     #----------------------------------------------------------------[ Actors ]---
 
