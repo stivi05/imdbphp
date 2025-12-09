@@ -1568,7 +1568,7 @@ EOF;
      * @return array director (array[0..n] of arrays[imdb,name,role])
      * @see IMDB page /fullcredits
      */
-    public function director()
+public function director()
 {
     if (!empty($this->credits_director)) {
         return $this->credits_director;
@@ -1579,13 +1579,19 @@ EOF;
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    // New selector for directors
+    // Selector за режисьори
     $nodes = $xpath->query("//li[@role='presentation'][.//span[contains(text(),'Director')]]//a[contains(@href,'/name/nm')]");
 
+    $seen = [];
     foreach ($nodes as $node) {
         $name = trim($node->textContent);
         $href = $node->getAttribute('href');
         $imdbId = $this->matchImdbId($href);
+
+        if (!$imdbId || isset($seen[$imdbId])) {
+            continue; // пропускаме дублирани
+        }
+        $seen[$imdbId] = true;
 
         $this->credits_director[] = [
             'imdb' => $imdbId,
