@@ -1666,7 +1666,7 @@ private function matchImdbId($href)
      * </pre>
      * @see IMDB page /fullcredits
      */
-    public function cast($short = false)
+   public function cast($short = false)
 {
     if ($short) {
         return $this->cast_short();
@@ -1686,53 +1686,41 @@ private function matchImdbId($href)
     $xpath = new \DOMXPath($dom);
 
     // Нов селектор за актьорите
-    $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
+    $nodes = $xpath->query('//*[@data-testid="title-cast-item__actor"]');
 
     $seen = [];
-    foreach ($nodes as $node) {
-        $dir = [
-            'imdb' => null,
-            'name' => null,
-            'name_alias' => null,
+    foreach ($nodes as $actorNode) {
+        $name = trim($actorNode->nodeValue);
+        $href = $actorNode->getAttribute("href");
+        $imdbId = $this->matchImdbId($href);
+
+        if (empty($name) || !$imdbId || isset($seen[$imdbId])) {
+            continue;
+        }
+        $seen[$imdbId] = true;
+
+        // Роля (ако има)
+        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span[1]", $actorNode->parentNode)->item(0);
+        $role = $roleNode ? trim($roleNode->nodeValue) : null;
+
+        // Снимка
+        $imgNode = $xpath->query(".//img[@alt='{$name}']", $actorNode->parentNode)->item(0);
+        $thumb = $imgNode ? trim($imgNode->getAttribute("src")) : "";
+        $photo = ($thumb && strpos($thumb, '._V1')) ? preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $thumb) : "";
+
+        $this->credits_cast[] = [
+            'imdb' => $imdbId,
+            'name' => $name,
+            'role' => $role,
+            'thumb' => $thumb,
+            'photo' => $photo,
             'credited' => true,
-            'role' => null,
+            'name_alias' => null,
             'role_episodes' => null,
             'role_start_year' => null,
             'role_end_year' => null,
-            'role_other' => [],
-            'thumb' => "",
-            'photo' => ""
+            'role_other' => []
         ];
-
-        // Име + IMDb ID
-        $actorNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $node)->item(0);
-        if (!$actorNode) {
-            continue;
-        }
-        $dir['imdb'] = $this->matchImdbId($actorNode->getAttribute("href"));
-        $dir['name'] = trim($actorNode->nodeValue);
-
-        if (empty($dir['name']) || isset($seen[$dir['imdb']])) {
-            continue;
-        }
-        $seen[$dir['imdb']] = true;
-
-        // Роля
-        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span[1]", $node)->item(0);
-        if ($roleNode) {
-            $dir['role'] = trim($roleNode->nodeValue);
-        }
-
-        // Снимка
-        $imgNode = $xpath->query(".//img[@class='ipc-image']", $node)->item(0);
-        if ($imgNode && $imgNode->getAttribute("src")) {
-            $dir['thumb'] = trim($imgNode->getAttribute("src"));
-            if (strpos($dir['thumb'], '._V1')) {
-                $dir['photo'] = preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $dir['thumb']);
-            }
-        }
-
-        $this->credits_cast[] = $dir;
     }
 
     return $this->credits_cast;
