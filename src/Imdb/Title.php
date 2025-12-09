@@ -1666,7 +1666,7 @@ private function matchImdbId($href)
      * </pre>
      * @see IMDB page /fullcredits
      */
-   public function cast($short = false)
+  public function cast($short = false)
 {
     if ($short) {
         return $this->cast_short();
@@ -1682,35 +1682,45 @@ private function matchImdbId($href)
         return [];
     }
 
-    // Записваме HTML за проверка
-    file_put_contents('/www/wwwroot/test.nanoset.xyz/debug_cast.html', $page);
-
     $dom = new \DOMDocument();
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    $nodes = $xpath->query('//*[@data-testid="title-cast-item__actor"]');
-    error_log("Cast: found " . $nodes->length . " actor nodes");
+    // Взимаме всички актьорски блокове
+    $nodes = $xpath->query('//div[@data-testid="title-cast-item"]');
+    error_log("Cast: found " . $nodes->length . " cast blocks");
 
     $seen = [];
-    foreach ($nodes as $actorNode) {
+    foreach ($nodes as $node) {
+        $actorNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $node)->item(0);
+        if (!$actorNode) {
+            continue;
+        }
+
         $name = trim($actorNode->nodeValue);
         $href = $actorNode->getAttribute("href");
         $imdbId = $this->matchImdbId($href);
-
-        error_log("Cast: actor node -> name={$name}, imdb={$imdbId}");
 
         if (empty($name) || !$imdbId || isset($seen[$imdbId])) {
             continue;
         }
         $seen[$imdbId] = true;
 
+        // Роля
+        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span[1]", $node)->item(0);
+        $role = $roleNode ? trim($roleNode->nodeValue) : null;
+
+        // Снимка
+        $imgNode = $xpath->query(".//img[@class='ipc-image']", $node)->item(0);
+        $thumb = $imgNode ? trim($imgNode->getAttribute("src")) : "";
+        $photo = ($thumb && strpos($thumb, '._V1')) ? preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $thumb) : "";
+
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
-            'role' => null,
-            'thumb' => "",
-            'photo' => "",
+            'role' => $role,
+            'thumb' => $thumb,
+            'photo' => $photo,
             'credited' => true,
             'name_alias' => null,
             'role_episodes' => null,
