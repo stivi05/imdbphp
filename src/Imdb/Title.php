@@ -445,22 +445,35 @@ EOF;
 
     #----------------------------------------------------------[ Aspect Ratio ]---
 
-    /**
-     * Aspect Ratio of movie screen
-     * @return string ratio e.g. "2.35 : 1" or "" if there is no aspect ratio on imdb
-     * @see IMDB page / (TitlePage)
-     */
-    public function aspect_ratio()
-    {
-        if (empty($this->aspectratio)) {
-            $xpath = $this->getXpathPage("Title");
-            $extract = $xpath->query("//li[@data-testid='title-techspec_aspectratio']//span[@class='ipc-metadata-list-item__list-content-item']");
-            if ($extract && $extract->item(0) != null) {
-                $this->aspectratio = trim($extract->item(0)->nodeValue);
-            }
-        }
+ /**
+ * Aspect Ratio of movie screen
+ * @return string ratio e.g. "2.35 : 1" or "" if not found
+ */
+public function aspect_ratio()
+{
+    if (!empty($this->aspectratio)) {
         return $this->aspectratio;
     }
+
+    $xpath = $this->getXpathPage("Title");
+
+    // Нов IMDb DOM 2024/2025
+    $extract = $xpath->query("//li[@data-testid='title-techspec_aspectratio']//li[contains(@class,'ipc-metadata-list-item__list-content-item')]");
+
+    if ($extract && $extract->item(0) !== null) {
+        $this->aspectratio = trim($extract->item(0)->nodeValue);
+        return $this->aspectratio;
+    }
+
+    // Резервен (стар IMDb DOM)
+    $extractOld = $xpath->query("//li[@data-testid='title-techspec_aspectratio']//span");
+    if ($extractOld && $extractOld->item(0) !== null) {
+        $this->aspectratio = trim($extractOld->item(0)->nodeValue);
+        return $this->aspectratio;
+    }
+
+    return "";
+}
 
     #----------------------------------------------------------[ Movie Rating ]---
 
