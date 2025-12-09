@@ -1700,12 +1700,16 @@ public function cast($short = false)
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    // IMDb 2024–2025 cast selector
+    // IMDb 2024–2025 селектор
     $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
 
     $seen = [];
+    $limit = 8;          // ⬅⬅⬅ ТУК ОГРАНИЧАВАМЕ ДО 8 АКТЬОРА
+    $count = 0;
 
     foreach ($nodes as $castItem) {
+
+        if ($count >= $limit) break;
 
         // ---- IMG + Link Wrapper ----
         $actorLink = $xpath->query(".//a[contains(@href,'/name/')]", $castItem)->item(0);
@@ -1713,32 +1717,32 @@ public function cast($short = false)
 
         $href = $actorLink->getAttribute("href");
 
-        // IMDb ID (взима само nm1234567)
+        // IMDb ID
         if (!preg_match('#/name/(nm\d+)#', $href, $m)) continue;
         $imdbId = $m[1];
 
         if (isset($seen[$imdbId])) continue;
         $seen[$imdbId] = true;
 
-        // ---- Actor name ----
-        $nameNode = $xpath->query(".//a[contains(@data-testid,'title-cast-item__actor')]", $castItem)->item(0);
+        // ---- NAME ----
+        $nameNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $castItem)->item(0);
         $name = $nameNode ? trim($nameNode->nodeValue) : "Unknown";
 
-        // ---- Role ----
+        // ---- ROLE ----
         $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $castItem)->item(0);
         $role = $roleNode ? trim($roleNode->nodeValue) : "";
 
-        // ---- Thumbnail ----
+        // ---- THUMB / PHOTO ----
         $imgNode = $xpath->query(".//img[contains(@class,'ipc-image')]", $castItem)->item(0);
         $thumb = $imgNode ? $imgNode->getAttribute("src") : "";
 
-        // ---- Save ----
+        // ---- SAVE ----
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
             'role' => $role,
             'thumb' => $thumb,
-            'photo' => $thumb,  
+            'photo' => $thumb,
             'credited' => true,
             'name_alias' => null,
             'role_episodes' => null,
@@ -1746,6 +1750,8 @@ public function cast($short = false)
             'role_end_year' => null,
             'role_other' => []
         ];
+
+        $count++;
     }
 
     return $this->credits_cast;
