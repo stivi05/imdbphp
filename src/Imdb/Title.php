@@ -1580,7 +1580,7 @@ EOF;
     $xpath = new \DOMXPath($dom);
 
     // New selector for directors
-    $nodes = $xpath->query("//li[@role='presentation']//span[text()='Director']//following::a[contains(@href,'/name/nm')]");
+    $nodes = $xpath->query("//li[@role='presentation'][.//span[contains(text(),'Director')]]//a[contains(@href,'/name/nm')]");
 
     foreach ($nodes as $node) {
         $name = trim($node->textContent);
