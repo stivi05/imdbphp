@@ -1701,44 +1701,47 @@ private function matchImdbId($href)
     $dom = new \DOMDocument();
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
+    
+    $nodes = $xpath->query("//li[@data-testid='title-cast-item']");
 
-    // Нов селектор за IMDb 2024–2025
-    $nodes = $xpath->query("//div[@data-testid='title-cast-item']//a[contains(@href,'/name/')]");
+    if (!$nodes || $nodes->length == 0) {
+        return [];
+    }
 
-    $seen = [];
-    foreach ($nodes as $actorNode) {
+    foreach ($nodes as $node) {
 
-        $href = $actorNode->getAttribute("href");
-        if (!preg_match('#/name/(nm\d+)#', $href, $m)) {
-            continue;
-        }
+        $actorLink = $xpath->query(".//a[contains(@href, '/name/')]", $node)->item(0);
+        if (!$actorLink) continue;
+
+        $href = $actorLink->getAttribute("href");
+        if (!preg_match('#/name/(nm\d+)#', $href, $m)) continue;
 
         $imdbId = $m[1];
-        if (isset($seen[$imdbId])) {
-            continue;
+        $name = trim($actorLink->nodeValue);
+
+        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $node)->item(0);
+        $role = $roleNode ? trim($roleNode->nodeValue) : '';
+
+        $thumbNode = $xpath->query(".//img[contains(@class,'ipc-image')]", $node)->item(0);
+
+        $thumb = "";
+        $photo = "";
+
+        if ($thumbNode) {
+            $thumb = $thumbNode->getAttribute("src");
+
+            // IMDb понякога дава blurry версии → пътят съдържа '._V1_'
+            // Правим URL за голяма снимка
+            $photo = preg_replace('/\._V1_.*?\.jpg/', '._V1_.jpg', $thumb);
         }
-        $seen[$imdbId] = true;
 
-        // Име
-        $name = trim($actorNode->nodeValue);
-
-        // Роля
-        $roleNode = $xpath->query(
-            "../div[@data-testid='cast-item-characters']//a/span",
-            $actorNode
-        );
-
-        $role = ($roleNode && $roleNode->item(0))
-            ? trim($roleNode->item(0)->nodeValue)
-            : "";
-
-        // Добавяне в масива
+        // Добавяме в масива
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
             'role' => $role,
-            'thumb' => "",
-            'photo' => "",
+            'thumb' => $thumb,
+            'photo' => $photo,
             'credited' => true,
             'name_alias' => null,
             'role_episodes' => null,
