@@ -1692,21 +1692,27 @@ private function matchImdbId($href)
 
     $seen = [];
     foreach ($nodes as $actorNode) {
-        $name = trim($actorNode->nodeValue);
-        $href = $actorNode->getAttribute("href");
+        // Името е в span вътре в линка
+        $nameNode = $xpath->query(".//span", $actorNode)->item(0);
+        $name = $nameNode ? trim($nameNode->nodeValue) : trim($actorNode->nodeValue);
 
-        // директно извличаме nm ID от href
+        $href = $actorNode->getAttribute("href");
         preg_match('#/name/(nm\d+)#', $href, $m);
         $imdbId = $m[1] ?? null;
 
-        if (empty($name) || !$imdbId || isset($seen[$imdbId])) {
+        // Диагностични логове
+        error_log("Actor href: " . $href);
+        error_log("Actor imdbId: " . ($imdbId ?: 'NULL'));
+        error_log("Actor name: " . ($name ?: 'EMPTY'));
+
+        if (!$imdbId || isset($seen[$imdbId])) {
             continue;
         }
         $seen[$imdbId] = true;
 
         // Роля (в същия блок)
         $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $actorNode->parentNode)->item(0);
-        $role = $roleNode ? trim($roleNode->nodeValue) : null;
+        $role = $roleNode ? trim($roleNode->nodeValue) : "";
 
         // Снимка временно изключена
         $thumb = "";
@@ -1727,6 +1733,7 @@ private function matchImdbId($href)
         ];
     }
 
+    error_log("Cast: returning " . count($this->credits_cast) . " actors");
     return $this->credits_cast;
 }
 
