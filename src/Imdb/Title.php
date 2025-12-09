@@ -1687,7 +1687,7 @@ private function matchImdbId($href)
     $xpath = new \DOMXPath($dom);
 
     // Взимаме всички линкове към актьори
-    $nodes = $xpath->query('//a[@data-testid="title-cast-item__actor"]');
+    $nodes = $xpath->query('//*[@id="__next"]/main/div/section[1]/div/section/div/div[1]/section[4]/div[2]/div[2]/div/div//a[@data-testid="title-cast-item__actor"]');
     error_log("Cast: found " . $nodes->length . " actor links");
 
     $seen = [];
