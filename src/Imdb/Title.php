@@ -1698,44 +1698,56 @@ private function matchImdbId($href)
         return [];
     }
 
+    libxml_use_internal_errors(true);
     $dom = new \DOMDocument();
-    @$dom->loadHTML($page);
+    $dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
-    
-    $nodes = $xpath->query("//li[@data-testid='title-cast-item']");
+    libxml_clear_errors();
 
-    if (!$nodes || $nodes->length == 0) {
-        return [];
+    // === НОВ IMDb селектор за 2025 ===
+    $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
+
+    if ($nodes->length == 0) {
+        error_log("IMDB CAST: ZERO nodes detected — layout changed?");
     }
 
-    foreach ($nodes as $node) {
+    $seen = [];
 
-        $actorLink = $xpath->query(".//a[contains(@href, '/name/')]", $node)->item(0);
-        if (!$actorLink) continue;
+    foreach ($nodes as $castItem) {
 
-        $href = $actorLink->getAttribute("href");
+        // --- ИМЕТО ---
+        $actorNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $castItem)->item(0);
+        if (!$actorNode) continue;
+
+        $href = $actorNode->getAttribute("href");
+
         if (!preg_match('#/name/(nm\d+)#', $href, $m)) continue;
 
         $imdbId = $m[1];
-        $name = trim($actorLink->nodeValue);
+        if (isset($seen[$imdbId])) continue;
+        $seen[$imdbId] = true;
 
-        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $node)->item(0);
-        $role = $roleNode ? trim($roleNode->nodeValue) : '';
+        $name = trim($actorNode->nodeValue);
 
-        $thumbNode = $xpath->query(".//img[contains(@class,'ipc-image')]", $node)->item(0);
+        // --- РОЛЯ ---
+        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $castItem)->item(0);
+        $role = $roleNode ? trim($roleNode->nodeValue) : "";
 
+        // --- СНИМКА ---
+        $imgNode = $xpath->query(".//img", $castItem)->item(0);
         $thumb = "";
         $photo = "";
 
-        if ($thumbNode) {
-            $thumb = $thumbNode->getAttribute("src");
-
-            // IMDb понякога дава blurry версии → пътят съдържа '._V1_'
-            // Правим URL за голяма снимка
-            $photo = preg_replace('/\._V1_.*?\.jpg/', '._V1_.jpg', $thumb);
+        if ($imgNode) {
+            $src = $imgNode->getAttribute("src");
+            if (strpos($src, "._V1_") !== false) {
+                // IMDb thumbnail → full image
+                $thumb = $src;
+                $photo = preg_replace('/\._V1_.*?\.jpg/', '._V1_.jpg', $src);
+            }
         }
 
-        // Добавяме в масива
+        // --- Добавяне ---
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
