@@ -1678,15 +1678,19 @@ private function matchImdbId($href)
 
     $page = $this->getPage("Title");
     if (empty($page)) {
+        error_log("Cast: getPage('Title') returned empty");
         return [];
     }
+
+    // Записваме HTML за проверка
+    file_put_contents(__DIR__ . '/../debug_cast.html', $page);
 
     $dom = new \DOMDocument();
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    // Нов селектор за актьорите
     $nodes = $xpath->query('//*[@data-testid="title-cast-item__actor"]');
+    error_log("Cast: found " . $nodes->length . " actor nodes");
 
     $seen = [];
     foreach ($nodes as $actorNode) {
@@ -1694,26 +1698,19 @@ private function matchImdbId($href)
         $href = $actorNode->getAttribute("href");
         $imdbId = $this->matchImdbId($href);
 
+        error_log("Cast: actor node -> name={$name}, imdb={$imdbId}");
+
         if (empty($name) || !$imdbId || isset($seen[$imdbId])) {
             continue;
         }
         $seen[$imdbId] = true;
 
-        // Роля (ако има)
-        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span[1]", $actorNode->parentNode)->item(0);
-        $role = $roleNode ? trim($roleNode->nodeValue) : null;
-
-        // Снимка
-        $imgNode = $xpath->query(".//img[@alt='{$name}']", $actorNode->parentNode)->item(0);
-        $thumb = $imgNode ? trim($imgNode->getAttribute("src")) : "";
-        $photo = ($thumb && strpos($thumb, '._V1')) ? preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $thumb) : "";
-
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
-            'role' => $role,
-            'thumb' => $thumb,
-            'photo' => $photo,
+            'role' => null,
+            'thumb' => "",
+            'photo' => "",
             'credited' => true,
             'name_alias' => null,
             'role_episodes' => null,
