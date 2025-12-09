@@ -1691,7 +1691,6 @@ private function matchImdbId($href)
 
     $page = $this->getPage("Title");
     if (empty($page)) {
-        error_log("Cast: getPage('Title') returned empty");
         return [];
     }
 
@@ -1699,44 +1698,43 @@ private function matchImdbId($href)
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    // Взимаме всички линкове към актьори
-    $nodes = $xpath->query('//a[@data-testid="title-cast-item__actor"]');
-    error_log("Cast: found " . $nodes->length . " actor links");
+    // Нов селектор за IMDb 2024–2025
+    $nodes = $xpath->query("//div[@data-testid='title-cast-item']//a[contains(@href,'/name/')]");
 
     $seen = [];
     foreach ($nodes as $actorNode) {
-        // Името е в span вътре в линка
-        $nameNode = $xpath->query(".//span", $actorNode)->item(0);
-        $name = $nameNode ? trim($nameNode->nodeValue) : trim($actorNode->nodeValue);
 
         $href = $actorNode->getAttribute("href");
-        preg_match('#/name/(nm\d+)#', $href, $m);
-        $imdbId = $m[1] ?? null;
+        if (!preg_match('#/name/(nm\d+)#', $href, $m)) {
+            continue;
+        }
 
-        // Диагностични логове
-        error_log("Actor href: " . $href);
-        error_log("Actor imdbId: " . ($imdbId ?: 'NULL'));
-        error_log("Actor name: " . ($name ?: 'EMPTY'));
-
-        if (!$imdbId || isset($seen[$imdbId])) {
+        $imdbId = $m[1];
+        if (isset($seen[$imdbId])) {
             continue;
         }
         $seen[$imdbId] = true;
 
-        // Роля (в същия блок)
-        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $actorNode->parentNode)->item(0);
-        $role = $roleNode ? trim($roleNode->nodeValue) : "";
+        // Име
+        $name = trim($actorNode->nodeValue);
 
-        // Снимка временно изключена
-        $thumb = "";
-        $photo = "";
+        // Роля
+        $roleNode = $xpath->query(
+            "../div[@data-testid='cast-item-characters']//a/span",
+            $actorNode
+        );
 
+        $role = ($roleNode && $roleNode->item(0))
+            ? trim($roleNode->item(0)->nodeValue)
+            : "";
+
+        // Добавяне в масива
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
             'role' => $role,
-            'thumb' => $thumb,
-            'photo' => $photo,
+            'thumb' => "",
+            'photo' => "",
             'credited' => true,
             'name_alias' => null,
             'role_episodes' => null,
@@ -1746,7 +1744,6 @@ private function matchImdbId($href)
         ];
     }
 
-    error_log("Cast: returning " . count($this->credits_cast) . " actors");
     return $this->credits_cast;
 }
 
