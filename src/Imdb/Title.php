@@ -1683,7 +1683,7 @@ private function matchImdbId($href)
     }
 
     // Записваме HTML за проверка
-    file_put_contents(__DIR__ . '/../debug_cast.html', $page);
+    file_put_contents('/www/wwwroot/test.nanoset.xyz/debug_cast.html', $page);
 
     $dom = new \DOMDocument();
     @$dom->loadHTML($page);
