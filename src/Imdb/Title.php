@@ -1666,7 +1666,7 @@ private function matchImdbId($href)
      * </pre>
      * @see IMDB page /fullcredits
      */
-  public function cast($short = false)
+ public function cast($short = false)
 {
     if ($short) {
         return $this->cast_short();
@@ -1686,17 +1686,12 @@ private function matchImdbId($href)
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    // Взимаме всички актьорски блокове
-    $nodes = $xpath->query('//div[@data-testid="title-cast-item"]');
-    error_log("Cast: found " . $nodes->length . " cast blocks");
+    // Взимаме всички линкове към актьори
+    $nodes = $xpath->query('//a[@data-testid="title-cast-item__actor"]');
+    error_log("Cast: found " . $nodes->length . " actor links");
 
     $seen = [];
-    foreach ($nodes as $node) {
-        $actorNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $node)->item(0);
-        if (!$actorNode) {
-            continue;
-        }
-
+    foreach ($nodes as $actorNode) {
         $name = trim($actorNode->nodeValue);
         $href = $actorNode->getAttribute("href");
         $imdbId = $this->matchImdbId($href);
@@ -1706,12 +1701,12 @@ private function matchImdbId($href)
         }
         $seen[$imdbId] = true;
 
-        // Роля
-        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span[1]", $node)->item(0);
+        // Роля (в същия блок)
+        $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $actorNode->parentNode)->item(0);
         $role = $roleNode ? trim($roleNode->nodeValue) : null;
 
-        // Снимка
-        $imgNode = $xpath->query(".//img[@class='ipc-image']", $node)->item(0);
+        // Снимка (в avatar блока преди линка)
+        $imgNode = $xpath->query(".//img[@class='ipc-image']", $actorNode->parentNode->parentNode)->item(0);
         $thumb = $imgNode ? trim($imgNode->getAttribute("src")) : "";
         $photo = ($thumb && strpos($thumb, '._V1')) ? preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $thumb) : "";
 
