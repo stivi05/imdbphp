@@ -1700,55 +1700,43 @@ public function cast($short = false)
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    // IMDb 2024–2025 селектор
+    // Нов IMDb селектор
     $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
 
     $seen = [];
-    $limit = 8;          // ⬅⬅⬅ ТУК ОГРАНИЧАВАМЕ ДО 8 АКТЬОРА
     $count = 0;
+    $limit = 8;
 
     foreach ($nodes as $castItem) {
 
         if ($count >= $limit) break;
 
-        // ---- IMG + Link Wrapper ----
         $actorLink = $xpath->query(".//a[contains(@href,'/name/')]", $castItem)->item(0);
         if (!$actorLink) continue;
 
         $href = $actorLink->getAttribute("href");
 
-        // IMDb ID
         if (!preg_match('#/name/(nm\d+)#', $href, $m)) continue;
         $imdbId = $m[1];
 
         if (isset($seen[$imdbId])) continue;
         $seen[$imdbId] = true;
 
-        // ---- NAME ----
-        $nameNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $castItem)->item(0);
+        $nameNode = $xpath->query(".//a[contains(@data-testid,'title-cast-item__actor')]", $castItem)->item(0);
         $name = $nameNode ? trim($nameNode->nodeValue) : "Unknown";
 
-        // ---- ROLE ----
         $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $castItem)->item(0);
         $role = $roleNode ? trim($roleNode->nodeValue) : "";
 
-        // ---- THUMB / PHOTO ----
         $imgNode = $xpath->query(".//img[contains(@class,'ipc-image')]", $castItem)->item(0);
         $thumb = $imgNode ? $imgNode->getAttribute("src") : "";
 
-        // ---- SAVE ----
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
             'role' => $role,
             'thumb' => $thumb,
-            'photo' => $thumb,
-            'credited' => true,
-            'name_alias' => null,
-            'role_episodes' => null,
-            'role_start_year' => null,
-            'role_end_year' => null,
-            'role_other' => []
+            'photo' => $thumb
         ];
 
         $count++;
