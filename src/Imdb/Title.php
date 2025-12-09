@@ -1694,49 +1694,63 @@ public function cast($short = false)
     }
 
     $page = $this->getPage("Title");
-    if (empty($page)) return [];
+    if (empty($page)) {
+        return [];
+    }
 
     $dom = new \DOMDocument();
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    // Нов IMDb селектор
+    // IMDb 2024–2025 cast selector (взима блоковете)
     $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
 
     $seen = [];
+    $limit = 8;             // показваме само първите 8 актьора
     $count = 0;
-    $limit = 8;
 
     foreach ($nodes as $castItem) {
-
         if ($count >= $limit) break;
 
+        // Намери първия линк към актьор (трябва да съдържа /name/)
         $actorLink = $xpath->query(".//a[contains(@href,'/name/')]", $castItem)->item(0);
         if (!$actorLink) continue;
 
         $href = $actorLink->getAttribute("href");
-
         if (!preg_match('#/name/(nm\d+)#', $href, $m)) continue;
         $imdbId = $m[1];
-
         if (isset($seen[$imdbId])) continue;
         $seen[$imdbId] = true;
 
+        // Име (актьор)
         $nameNode = $xpath->query(".//a[contains(@data-testid,'title-cast-item__actor')]", $castItem)->item(0);
-        $name = $nameNode ? trim($nameNode->nodeValue) : "Unknown";
+        $name = $nameNode ? trim($nameNode->nodeValue) : trim($actorLink->nodeValue);
 
+        // Роля, ако има
         $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $castItem)->item(0);
         $role = $roleNode ? trim($roleNode->nodeValue) : "";
 
-        $imgNode = $xpath->query(".//img[contains(@class,'ipc-image')]", $castItem)->item(0);
-        $thumb = $imgNode ? $imgNode->getAttribute("src") : "";
+        // Thumb: взимаме src (или data-src) от img
+        $imgNode = $xpath->query(".//img", $castItem)->item(0);
+        $thumb = "";
+        if ($imgNode) {
+            $thumb = $imgNode->getAttribute("src") ?: $imgNode->getAttribute("data-src") ?: "";
+            // normalize relative urls if any
+            if ($thumb && strpos($thumb, '//') === 0) $thumb = 'https:' . $thumb;
+        }
 
         $this->credits_cast[] = [
             'imdb' => $imdbId,
             'name' => $name,
             'role' => $role,
             'thumb' => $thumb,
-            'photo' => $thumb
+            'photo' => $thumb,
+            'credited' => true,
+            'name_alias' => null,
+            'role_episodes' => null,
+            'role_start_year' => null,
+            'role_end_year' => null,
+            'role_other' => []
         ];
 
         $count++;
