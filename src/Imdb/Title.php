@@ -1291,31 +1291,37 @@ EOF;
      * @return array [country => rating] or [country => [rating,]]
      * @see IMDB Parental Guidance page / (parentalguide)
      */
-    public function mpaa($ratings = false)
-    {
-        if (empty($this->mpaas)) {
-            $xpath = $this->getXpathPage("ParentalGuide");
-            $cells = $xpath->query("//section[@id=\"certificates\"]//li[@class=\"ipl-inline-list__item\"]");
-            foreach ($cells as $cell) {
-                if ($a = $cell->getElementsByTagName('a')->item(0)) {
-                    $mpaa = explode(':', $a->nodeValue, 2);
-                    $country = trim($mpaa[0]);
-                    $rating = isset($mpaa[1]) ? $mpaa[1] : '';
-
-                    if ($ratings) {
-                        if (!isset($this->mpaas[$country])) {
-                            $this->mpaas[$country] = [];
-                        }
-
-                        $this->mpaas[$country][] = $rating;
-                    } else {
-                        $this->mpaas[$country] = $rating;
-                    }
-                }
-            }
-        }
+public function mpaa($ratings = false)
+{
+    if (!empty($this->mpaas)) {
         return $this->mpaas;
     }
+
+    $xpath = $this->getXpathPage("ParentalGuide");
+    if (!$xpath) {
+        return [];
+    }
+
+    // Нов селектор: data-testid="certificates"
+    $cells = $xpath->query("//section[@data-testid='certificates']//li");
+    foreach ($cells as $cell) {
+        $text = trim($cell->textContent);
+        if (strpos($text, ':') !== false) {
+            [$country, $rating] = array_map('trim', explode(':', $text, 2));
+
+            if ($ratings) {
+                if (!isset($this->mpaas[$country])) {
+                    $this->mpaas[$country] = [];
+                }
+                $this->mpaas[$country][] = $rating;
+            } else {
+                $this->mpaas[$country] = $rating;
+            }
+        }
+    }
+
+    return $this->mpaas;
+}
 
     /** Get the MPAA data (also known as PG or FSK) - including historical data
      * @return array mpaa (array[country][0..n]=rating)
@@ -1345,20 +1351,26 @@ EOF;
      * @return string reason why the movie was rated such
      * @see IMDB page / (TitlePage)
      */
-    public function mpaa_reason()
-    {
-        if (empty($this->mpaa_justification)) {
-            $this->getPage("ParentalGuide");
-            if (preg_match(
-                '!id="mpaa-rating"\s*>\s*<td[^>]*>.*</td>\s*<td[^>]*>(.*)</td>!im',
-                $this->page["ParentalGuide"],
-                $match
-            )) {
-                $this->mpaa_justification = trim($match[1]);
-            }
-        }
+  public function mpaa_reason()
+{
+    if (!empty($this->mpaa_justification)) {
         return $this->mpaa_justification;
     }
+
+    $this->getPage("ParentalGuide");
+    $page = $this->page["ParentalGuide"] ?? '';
+
+    if (!$page) {
+        return '';
+    }
+
+    // Нов селектор IMDb 2025
+    if (preg_match('~<section[^>]*data-testid="mpaa-rating".*?<span[^>]*>(?<rating>[^<]+)</span>\s*<span[^>]*>(?<reason>[^<]+)</span>~is', $page, $match)) {
+        $this->mpaa_justification = trim($match['rating'] . ' ' . $match['reason']);
+    }
+
+    return $this->mpaa_justification ?? '';
+}
 
     #----------------------------------------------[ Position in the "Top250" ]---
 
