@@ -1171,20 +1171,27 @@ EOF;
      * @return array country (array[0..n] of string)
      * @see IMDB page / (TitlePage)
      */
-    public function country()
-    {
-        if (empty($this->countries)) {
-            if (preg_match_all(
-                '!/search/title\/?\?country_of_origin=[^>]+?>(.*?)<!m',
-                $this->getPage("Title"),
-                $matches
-            )) {
-                $this->countries = $matches[1];
-            }
-        }
+ public function country()
+{
+    if (!empty($this->countries)) {
         return $this->countries;
     }
 
+    $xpath = $this->getXpathPage("Title");
+    if (!$xpath) {
+        return [];
+    }
+
+    // Нов селектор IMDb 2025
+    $nodes = $xpath->query("//li[@data-testid='title-details-origin']//a");
+    $countries = [];
+    foreach ($nodes as $node) {
+        $countries[] = trim($node->textContent);
+    }
+
+    $this->countries = $countries;
+    return $this->countries;
+}
 
     #------------------------------------------------------------[ Movie AKAs ]---
 
