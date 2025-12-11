@@ -564,26 +564,40 @@ class Person extends MdbBase
      *         where month is the month name, and mon the month number
      * @see IMDB person page /bio
      */
-    public function died()
-    {
-        if (empty($this->deathday)) {
-            $page = $this->getPage("Bio");
-            if (preg_match('|Died</td>(.*?)</td|ims', $page, $match)) {
-                preg_match('|/search/name\?death_date=(\d+)-(\d+)-(\d+).*?\n?>(.*?) \d+<|', $match[1], $daymonyear);
-                preg_match('|/search/name\?death_place=.*?"\s*>(.*?)<|ims', $match[1], $dloc);
-                preg_match('/\(([^\)]+)\)/ims', $match[1], $dcause);
-                $this->deathday = array(
-                  "day" => @$daymonyear[3],
-                  "month" => @$daymonyear[4],
-                  "mon" => @$daymonyear[2],
-                  "year" => @$daymonyear[1],
-                  "place" => @trim(strip_tags($dloc[1])),
-                  "cause" => @$dcause[1]
-                );
-            }
-        }
+   public function died()
+{
+    if (!empty($this->deathday)) {
         return $this->deathday;
     }
+
+    $page = $this->getPage("Bio");
+    if (!$page) {
+        return [];
+    }
+
+    // Новата структура: <li data-testid="title-bio-died"> и <li data-testid="title-bio-died-place">
+    if (preg_match('~<li data-testid="title-bio-died">.*?(?<date>\d{4}-\d{2}-\d{2}).*?</li>~is', $page, $match)) {
+        $parts = explode('-', $match['date']);
+        $this->deathday = [
+            'year'  => $parts[0] ?? null,
+            'mon'   => $parts[1] ?? null,
+            'day'   => $parts[2] ?? null,
+            'month' => $parts[1] ? date('F', mktime(0, 0, 0, $parts[1], 10)) : null,
+        ];
+
+        // Място на смъртта
+        if (preg_match('~<li data-testid="title-bio-died-place">.*?>(?<place>[^<]+)<~is', $page, $loc)) {
+            $this->deathday['place'] = trim($loc['place']);
+        }
+
+        // Причина за смъртта (ако IMDb я показва в скоби)
+        if (preg_match('~\((?<cause>[^)]+)\)~is', $page, $cause)) {
+            $this->deathday['cause'] = trim($cause['cause']);
+        }
+    }
+
+    return $this->deathday ?? [];
+}
 
     #-----------------------------------------------------------[ Body Height ]---
 
