@@ -528,24 +528,33 @@ class Person extends MdbBase
      *         where month is the month name, and mon the month number
      * @see IMDB person page /bio
      */
-    public function born()
-    {
-        if (empty($this->birthday)) {
-            if (preg_match('|Born</td>(.*)</td|iUms', $this->getPage("Bio"), $match)) {
-                preg_match('|/search/name\?birth_monthday=(\d+)-(\d+).*?\n?>(.*?) \d+<|', $match[1], $daymon);
-                preg_match('|/search/name\?birth_year=(\d{4})|ims', $match[1], $dyear);
-                preg_match('|/search/name\?birth_place=.*?"\s*>(.*?)<|ims', $match[1], $dloc);
-                $this->birthday = array(
-                  "day" => @$daymon[2],
-                  "month" => @$daymon[3],
-                  "mon" => @$daymon[1],
-                  "year" => @$dyear[1],
-                  "place" => @$dloc[1]
-                );
-            }
-        }
+   public function born()
+{
+    if (!empty($this->birthday)) {
         return $this->birthday;
     }
+
+    $page = $this->getPage("Bio");
+    if (!$page) {
+        return [];
+    }
+
+    // Нов селектор IMDb 2025
+    if (preg_match('~<li data-testid="title-bio-born">.*?(\d{4}-\d{2}-\d{2}).*?<li data-testid="title-bio-born-place">.*?>(.*?)<~is', $page, $match)) {
+        $date = $match[1]; // yyyy-mm-dd
+        $place = trim(strip_tags($match[2]));
+
+        $parts = explode('-', $date);
+        $this->birthday = [
+            'year' => $parts[0] ?? null,
+            'mon'  => $parts[1] ?? null,
+            'day'  => $parts[2] ?? null,
+            'place'=> $place
+        ];
+    }
+
+    return $this->birthday ?? [];
+}
 
     #------------------------------------------------------------------[ Died ]---
 
