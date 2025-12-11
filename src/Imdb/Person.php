@@ -757,55 +757,40 @@ class Person extends MdbBase
      * @return array bio array [0..n] of array[string desc, array author[url,name]]
      * @see IMDB person page /bio
      */
-    public function bio()
-    {
-        if (empty($this->bio_bio)) {
-            $page = $this->getPage("Bio");
-            if (!$page) {
-                return array();
-            } // no such page
-            if (preg_match(
-                '!<h4 class="li_group">Mini Bio[^>]+?>(.+?)<(h4 class="li_group"|div class="article")!ims',
-                $page,
-                $block
-            )) {
-                preg_match_all(
-                    '!<div class="soda.*?\s*<p>\s*(?<bio>.+?)\s</p>\s*<p><em>- IMDb Mini Biography By:\s*(?<author>.+?)\s*</em>!ims',
-                    $block[1],
-                    $matches
-                );
-                for ($i = 0; $i < count($matches[0]); ++$i) {
-                    $bio_bio["desc"] = str_replace(
-                        "href=\"/name/nm",
-                        "href=\"https://" . $this->imdbsite . "/name/nm",
-                        str_replace(
-                            "href=\"/title/tt",
-                            "href=\"https://" . $this->imdbsite . "/title/tt",
-                            str_replace(
-                                '/search/name',
-                                'https://' . $this->imdbsite . '/search/name',
-                                $matches['bio'][$i]
-                            )
-                        )
-                    );
-                    $author = 'Written by ' . (str_replace(
-                        '/search/name',
-                        'https://' . $this->imdbsite . '/search/name',
-                        $matches['author'][$i]
-                    ));
-                    if (@preg_match('!href="(.+?)"[^>]*>\s*(.*?)\s*</a>!', $author, $match)) {
-                        $bio_bio["author"]["url"] = $match[1];
-                        $bio_bio["author"]["name"] = $match[2];
-                    } else {
-                        $bio_bio["author"]["url"] = '';
-                        $bio_bio["author"]["name"] = trim($matches['author'][$i]);
-                    }
-                    $this->bio_bio[] = $bio_bio;
-                }
-            }
-        }
+   public function bio()
+{
+    if (!empty($this->bio_bio)) {
         return $this->bio_bio;
     }
+
+    $page = $this->getPage("Bio");
+    if (!$page) {
+        return [];
+    }
+
+    // NEW IMDb 2025 selector for mini bio
+    if (!preg_match(
+        '~data-testid="mini-bio".*?>\s*(.+?)\s*</div>~is',
+        $page,
+        $bio_block
+    )) {
+        return [];
+    }
+
+    $bio_text = trim(strip_tags($bio_block[1]));
+
+    if ($bio_text) {
+        $this->bio_bio[] = [
+            "desc" => $bio_text,
+            "author" => [
+                "url" => "",
+                "name" => ""
+            ]
+        ];
+    }
+
+    return $this->bio_bio;
+}
 
     #-----------------------------------------[ Helper to Trivia, Quotes, ... ]---
 
