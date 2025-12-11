@@ -31,47 +31,51 @@ class Request
      * @param string $url URL to open
      * @param Config $config The Config object to use
      */
-    public function __construct($url, Config $config)
-    {
-        $this->config = $config;
-        $this->ch = curl_init($url);
-        curl_setopt($this->ch, CURLOPT_ENCODING, "");
-        curl_setopt($this->ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($this->ch, CURLOPT_HEADERFUNCTION, array(&$this, "callback_CURLOPT_HEADERFUNCTION"));
+   public function __construct($url, Config $config)
+{
+    $this->config = $config;
+    $this->ch = curl_init($url);
+    curl_setopt($this->ch, CURLOPT_ENCODING, "");
+    curl_setopt($this->ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($this->ch, CURLOPT_HEADERFUNCTION, array(&$this, "callback_CURLOPT_HEADERFUNCTION"));
 
-        //use HTTP-Proxy
-        if ($config->use_proxy === true) {
-            curl_setopt($this->ch, CURLOPT_PROXY, $config->proxy_host);
-            curl_setopt($this->ch, CURLOPT_PROXYPORT, $config->proxy_port);
+    // Proxy настройки
+    if ($config->use_proxy === true) {
+        curl_setopt($this->ch, CURLOPT_PROXY, $config->proxy_host);
+        curl_setopt($this->ch, CURLOPT_PROXYPORT, $config->proxy_port);
 
-            //Login credentials set?
-            if (!empty($config->proxy_user) && !empty($config->proxy_pw)) {
-                curl_setopt($this->ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-                curl_setopt($this->ch, CURLOPT_PROXYUSERPWD, $config->proxy_user . ':' . $config->proxy_pw);
-            }
-        }
-
-        $this->urltoopen = $url;
-
-        $this->addHeaderLine('Referer', 'https://' . $config->imdbsite . '/');
-
-        // Добавяме Accept и Accept-Language headers
-        $this->addHeaderLine('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
-        $this->addHeaderLine('Accept-Language', 'en-US,en;q=0.9');
-
-        if ($config->force_agent) {
-            curl_setopt($this->ch, CURLOPT_USERAGENT, $config->force_agent);
-        } else {
-            curl_setopt($this->ch, CURLOPT_USERAGENT, $config->default_agent);
-        }
-        if ($config->language) {
-            $this->addHeaderLine('Accept-Language', $config->language);
-        }
-        if ($config->ip_address) {
-            $this->addHeaderLine('X-Forwarded-For', $config->ip_address);
+        if (!empty($config->proxy_user) && !empty($config->proxy_pw)) {
+            curl_setopt($this->ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+            curl_setopt($this->ch, CURLOPT_PROXYUSERPWD, $config->proxy_user . ':' . $config->proxy_pw);
         }
     }
 
+    $this->urltoopen = $url;
+
+    // Основни headers
+    $this->addHeaderLine('Referer', 'https://' . $config->imdbsite . '/');
+    $this->addHeaderLine('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
+
+    // Език – от конфигурацията или по подразбиране EN
+    if ($config->language) {
+        $this->addHeaderLine('Accept-Language', $config->language);
+    } else {
+        $this->addHeaderLine('Accept-Language', 'en-US,en;q=0.9');
+    }
+
+    // User-Agent
+    if ($config->force_agent) {
+        curl_setopt($this->ch, CURLOPT_USERAGENT, $config->force_agent);
+    } else {
+        curl_setopt($this->ch, CURLOPT_USERAGENT, $config->default_agent);
+    }
+
+    // IP spoofing ако е зададено
+    if ($config->ip_address) {
+        $this->addHeaderLine('X-Forwarded-For', $config->ip_address);
+    }
+}
+    
     public function addHeaderLine($name, $value)
     {
         $this->requestHeaders[] = "$name: $value";
