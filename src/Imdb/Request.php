@@ -55,6 +55,10 @@ class Request
 
         $this->addHeaderLine('Referer', 'https://' . $config->imdbsite . '/');
 
+        // Добавяме Accept и Accept-Language headers
+        $this->addHeaderLine('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8');
+        $this->addHeaderLine('Accept-Language', 'en-US,en;q=0.9');
+
         if ($config->force_agent) {
             curl_setopt($this->ch, CURLOPT_USERAGENT, $config->force_agent);
         } else {
