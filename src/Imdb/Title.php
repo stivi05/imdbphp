@@ -1309,21 +1309,29 @@ public function mpaa($ratings = false)
         return [];
     }
 
-    // Нов селектор: data-testid="certificates"
+    // Гъвкав селектор: всички <li> в секцията certificates
     $cells = $xpath->query("//section[@data-testid='certificates']//li");
     foreach ($cells as $cell) {
-        $text = trim($cell->textContent);
-        if (strpos($text, ':') !== false) {
-            [$country, $rating] = array_map('trim', explode(':', $text, 2));
+        $countryNode = $xpath->query(".//span", $cell)->item(0);
+        $ratingNode  = $xpath->query(".//button", $cell)->item(0);
+
+        if ($countryNode && $ratingNode) {
+            $country = trim($countryNode->textContent);
+            $rating  = trim($ratingNode->textContent);
 
             if ($ratings) {
-                if (!isset($this->mpaas[$country])) {
-                    $this->mpaas[$country] = [];
-                }
                 $this->mpaas[$country][] = $rating;
             } else {
                 $this->mpaas[$country] = $rating;
             }
+        }
+    }
+
+    // Ако нищо не е намерено, fallback към твърдия XPath
+    if (empty($this->mpaas)) {
+        $node = $xpath->query('//*[@id="__next"]/main/div/section[1]/section/div[3]/section/section/div[2]/div[1]/ul/li[2]/button')->item(0);
+        if ($node) {
+            $this->mpaas['USA'] = trim($node->nodeValue);
         }
     }
 
@@ -1358,22 +1366,21 @@ public function mpaa($ratings = false)
      * @return string reason why the movie was rated such
      * @see IMDB page / (TitlePage)
      */
-  public function mpaa_reason()
+ public function mpaa_reason(): string
 {
     if (!empty($this->mpaa_justification)) {
         return $this->mpaa_justification;
     }
 
-    $this->getPage("ParentalGuide");
-    $page = $this->page["ParentalGuide"] ?? '';
-
-    if (!$page) {
+    $xpath = $this->getXpathPage("ParentalGuide");
+    if (!$xpath) {
         return '';
     }
 
-    // Нов селектор IMDb 2025
-    if (preg_match('~<section[^>]*data-testid="mpaa-rating".*?<span[^>]*>(?<rating>[^<]+)</span>\s*<span[^>]*>(?<reason>[^<]+)</span>~is', $page, $match)) {
-        $this->mpaa_justification = trim($match['rating'] . ' ' . $match['reason']);
+    // Нов селектор IMDb 2025: justification може да е в <p> или <span>
+    $reasonNode = $xpath->query("//section[@data-testid='mpaa-rating']//p | //section[@data-testid='mpaa-rating']//span")->item(0);
+    if ($reasonNode) {
+        $this->mpaa_justification = trim($reasonNode->textContent);
     }
 
     return $this->mpaa_justification ?? '';
