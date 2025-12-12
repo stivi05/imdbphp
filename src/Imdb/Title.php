@@ -1384,7 +1384,7 @@ public function mpaa($ratings = false)
      * @return string reason why the movie was rated such
      * @see IMDB page / (TitlePage)
      */
- public function mpaa_reason(): string
+public function mpaa_reason(): string
 {
     if (!empty($this->mpaa_justification)) {
         return $this->mpaa_justification;
@@ -1398,7 +1398,7 @@ public function mpaa($ratings = false)
         }
     }
 
-    // Fallback: ако няма justification, върни рейтинг от mpaa()
+    // Fallback: ако няма justification, върни рейтинг от mpaa() или JSON-LD
     if (empty($this->mpaa_justification)) {
         $mpaa = $this->mpaa();
         if (!empty($mpaa['United States'])) {
@@ -1409,11 +1409,17 @@ public function mpaa($ratings = false)
             $first = reset($mpaa);
             $this->mpaa_justification = is_array($first) ? reset($first) : $first;
         } else {
-            $this->mpaa_justification = '?';
+            // JSON-LD fallback
+            if (preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
+                $json = json_decode($matches[1], true);
+                if (!empty($json['contentRating'])) {
+                    $this->mpaa_justification = $json['contentRating'];
+                }
+            }
         }
     }
 
-    return $this->mpaa_justification;
+    return $this->mpaa_justification ?? '?';
 }
 
     #----------------------------------------------[ Position in the "Top250" ]---
