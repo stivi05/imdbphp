@@ -1812,6 +1812,8 @@ if (empty($this->credits_cast)) {
     preg_match_all('/<script type="application\/ld\+json">(.*?)<\/script>/s', $page, $matches);
     foreach ($matches[1] as $jsonBlock) {
         $json = json_decode($jsonBlock, true);
+
+        // директно actor[]
         if (!empty($json['actor'])) {
             foreach ($json['actor'] as $actor) {
                 $this->credits_cast[] = [
@@ -1823,11 +1825,29 @@ if (empty($this->credits_cast)) {
                     'credited' => true,
                 ];
             }
-            break; // намерихме actor[], спираме
+            break;
+        }
+
+        // вложено в @graph
+        if (!empty($json['@graph'])) {
+            foreach ($json['@graph'] as $graphItem) {
+                if (!empty($graphItem['actor'])) {
+                    foreach ($graphItem['actor'] as $actor) {
+                        $this->credits_cast[] = [
+                            'imdb'  => $actor['url'] ?? '',
+                            'name'  => $actor['name'] ?? '',
+                            'role'  => $actor['character'] ?? '',
+                            'thumb' => $actor['image'] ?? '',
+                            'photo' => $actor['image'] ?? '',
+                            'credited' => true,
+                        ];
+                    }
+                    break 2;
+                }
+            }
         }
     }
 }
-
     return $this->credits_cast;
 }
     
