@@ -35,9 +35,10 @@ class Request
 {
     $this->config = $config;
     $this->ch = curl_init($url);
-    curl_setopt($this->ch, CURLOPT_ENCODING, "");
+    curl_setopt($this->ch, CURLOPT_ENCODING, "gzip, deflate");
     curl_setopt($this->ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($this->ch, CURLOPT_HEADERFUNCTION, array(&$this, "callback_CURLOPT_HEADERFUNCTION"));
+    curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
 
     // Proxy настройки
     if ($config->use_proxy === true) {
