@@ -1327,11 +1327,18 @@ public function mpaa($ratings = false)
         return [];
     }
 
-    // Гъвкав селектор: всички <li> в секцията certificates
+    // НОВА IMDb структура 2024–2025
     $cells = $xpath->query("//section[@data-testid='certificates']//li");
+
     foreach ($cells as $cell) {
-        $countryNode = $xpath->query(".//span", $cell)->item(0);
-        $ratingNode  = $xpath->query(".//button", $cell)->item(0);
+        // Новите IMDb елементи:
+        $countryNode = $xpath->query(".//*[contains(@class,'metadata-list-summary-item__tc')]", $cell)->item(0);
+        $ratingNode  = $xpath->query(".//div[contains(@class,'ipc-metadata-list-summary-item__li')]", $cell)->item(0);
+
+        if (!$ratingNode) {
+            // fallback – някои варианти нямат това class име
+            $ratingNode = $xpath->query(".//div[contains(@class,'ipc-metadata-list-summary-item__tl')]", $cell)->item(0);
+        }
 
         if ($countryNode && $ratingNode) {
             $country = trim($countryNode->textContent);
@@ -1345,9 +1352,9 @@ public function mpaa($ratings = false)
         }
     }
 
-    // Ако нищо не е намерено, fallback към твърдия XPath
+    // Стар fallback ако IMDb пак счупи структурата
     if (empty($this->mpaas)) {
-        $node = $xpath->query('//*[@id="__next"]/main/div/section[1]/section/div[3]/section/section/div[2]/div[1]/ul/li[2]/button')->item(0);
+        $node = $xpath->query("//button[contains(@href,'certificates=US')]")->item(0);
         if ($node) {
             $this->mpaas['USA'] = trim($node->nodeValue);
         }
