@@ -1738,6 +1738,9 @@ public function cast($short = false)
     }
 
     $page = $this->getPage("Title");
+    // DEBUG: запиши HTML-а в файл, за да видиш какво идва от IMDb
+    file_put_contents(__DIR__ . '/debug_cast.html', $page);
+    
     if (empty($page)) {
         return [];
     }
