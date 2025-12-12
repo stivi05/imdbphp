@@ -508,16 +508,31 @@ class Person extends MdbBase
      * @return string birthname
      * @see IMDB person page /bio
      */
-    public function birthname()
-    {
+   public function birthname()
+{
+    if (empty($this->birth_name)) {
+        $page = $this->getPage("Bio");
+
+        // Старият regex
+        if (preg_match("!Birth Name</td>\s*<td>(.*?)</td>\n!m", $page, $match)) {
+            $this->birth_name = trim($match[1]);
+        }
+
+        // Нов fallback
         if (empty($this->birth_name)) {
-            $page = $this->getPage("Bio");
-            if (preg_match("!Birth Name</td>\s*<td>(.*?)</td>\n!m", $page, $match)) {
-                $this->birth_name = trim($match[1]);
+            $dom = new \DOMDocument();
+            @$dom->loadHTML($page);
+            $xpath = new \DOMXPath($dom);
+
+            // IMDb вече маркира birth name с data-testid
+            $node = $xpath->query("//li[@data-testid='nm_pd_bio_birthname']")->item(0);
+            if ($node) {
+                $this->birth_name = trim($node->nodeValue);
             }
         }
-        return $this->birth_name;
     }
+    return $this->birth_name;
+}
 
     #-------------------------------------------------------------[ Nick Name ]---
 
