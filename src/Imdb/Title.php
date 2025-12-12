@@ -1053,24 +1053,42 @@ EOF;
      * Setup cover photo (thumbnail and big variant)
      * @see IMDB page / (TitlePage)
      */
-    private function populatePoster()
-    {
-        if (isset($this->jsonLD()->image)) {
-            $this->main_poster = $this->jsonLD()->image;
-        }
-        $hasPosterElement = preg_match('!<img [^>]+title="[^"]+Poster"[^>]+src="([^"]+)"[^>]+/>!ims', $this->getPage("Title"), $match);
-        if ($hasPosterElement
-            && !empty($match[1])) {
-            $this->main_poster_thumb = $match[1];
-        } else {
-            $xpath = $this->getXpathPage("Title");
-            $thumb = $xpath->query("//div[contains(@class, 'ipc-poster ipc-poster--baseAlt') and contains(@data-testid, 'hero-media__poster')]//img");
-            if (!empty($thumb) && $thumb->item(0) != null) {
-                $this->main_poster_thumb = $thumb->item(0)->getAttribute('src');
-            }
-        }
+   private function populatePoster()
+{
+    $page = $this->getPage("Title");
+
+    // 1. JSON-LD image (ако IMDb го дава)
+    $json = $this->jsonLD();
+    if (isset($json->image)) {
+        $this->main_poster = $json->image;
+        $this->main_poster_thumb = $json->image;
+        return;
     }
 
+    // 2. Новият markup: data-testid="hero-media__poster"
+    if (preg_match('#<img[^>]+data-testid="hero-media__poster"[^>]+src="([^"]+)"#i', $page, $match)) {
+        $this->main_poster = $match[1];
+        $this->main_poster_thumb = $match[1];
+        return;
+    }
+
+    // 3. XPath fallback
+    $xpath = $this->getXpathPage("Title");
+    $thumb = $xpath->query("//div[contains(@data-testid, 'hero-media__poster')]//img");
+    if (!empty($thumb) && $thumb->item(0) != null) {
+        $src = $thumb->item(0)->getAttribute('src');
+        if (empty($src)) {
+            // ако е srcset
+            $srcset = $thumb->item(0)->getAttribute('srcset');
+            if (!empty($srcset)) {
+                $parts = explode(' ', trim($srcset));
+                $src = $parts[0];
+            }
+        }
+        $this->main_poster = $src;
+        $this->main_poster_thumb = $src;
+    }
+}
 
     /**
      * Get the poster/cover image URL
