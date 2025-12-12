@@ -1390,27 +1390,37 @@ public function mpaa_reason(): string
         return $this->mpaa_justification;
     }
 
-    // ВЗИМАМЕ PARENTAL GUIDE — не Title
-    $xpath = $this->getXpathPage("ParentalGuide");
-    if ($xpath) {
-        // IMDb 2024 → <li data-testid="rating-certificate">Rated R for ...</li>
-        $node = $xpath->query("//li[@data-testid='rating-certificate']")->item(0);
-        if ($node) {
-            $this->mpaa_justification = trim($node->textContent);
+    $html = $this->sSource;
+
+    // 1) JSON-LD (най-надеждно)
+    if (preg_match_all('/<script type="application\/ld\+json">(.*?)<\/script>/s', $html, $blocks)) {
+        foreach ($blocks[1] as $json) {
+            $data = json_decode($json, true);
+            if (!empty($data['contentRating'])) {
+                $this->mpaa_justification = trim($data['contentRating']);
+                return $this->mpaa_justification;
+            }
         }
     }
 
-    // Ако още няма — fallback към JSON-LD
-    if (empty($this->mpaa_justification)
-        && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
+    // 2) meta property=“contentRating”
+    if (preg_match('/<meta[^>]+contentRating"[^>]+content="([^"]+)"/i', $html, $m)) {
+        $this->mpaa_justification = trim($m[1]);
+        return $this->mpaa_justification;
+    }
 
-        $json = json_decode($matches[1], true);
-        if (!empty($json['contentRating'])) {
-            $this->mpaa_justification = $json['contentRating'];
+    // 3) Fallback към mpaa()
+    $mpaa = $this->mpaa();
+    if (!empty($mpaa)) {
+        foreach (['United States', 'USA', 'US'] as $key) {
+            if (!empty($mpaa[$key])) {
+                $this->mpaa_justification = $mpaa[$key];
+                return $this->mpaa_justification;
+            }
         }
     }
 
-    return !empty($this->mpaa_justification) ? $this->mpaa_justification : 'Not yet rated';
+    return 'Not yet rated';
 }
 
     #----------------------------------------------[ Position in the "Top250" ]---
