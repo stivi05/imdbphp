@@ -1807,22 +1807,26 @@ public function cast($short = false)
         $count++;
     }
 
-    // 🔎 JSON-LD fallback ако няма резултати
-    if (empty($this->credits_cast) && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $page, $m)) {
-        $json = json_decode($m[1], true);
+// JSON-LD fallback ако няма резултати
+if (empty($this->credits_cast)) {
+    preg_match_all('/<script type="application\/ld\+json">(.*?)<\/script>/s', $page, $matches);
+    foreach ($matches[1] as $jsonBlock) {
+        $json = json_decode($jsonBlock, true);
         if (!empty($json['actor'])) {
             foreach ($json['actor'] as $actor) {
                 $this->credits_cast[] = [
-                    'imdb' => $actor['url'] ?? '',
-                    'name' => $actor['name'] ?? '',
-                    'role' => $actor['character'] ?? '',
+                    'imdb'  => $actor['url'] ?? '',
+                    'name'  => $actor['name'] ?? '',
+                    'role'  => $actor['character'] ?? '',
                     'thumb' => $actor['image'] ?? '',
                     'photo' => $actor['image'] ?? '',
                     'credited' => true,
                 ];
             }
+            break; // намерихме actor[], спираме
         }
     }
+}
 
     return $this->credits_cast;
 }
