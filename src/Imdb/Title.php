@@ -1391,17 +1391,29 @@ public function mpaa($ratings = false)
     }
 
     $xpath = $this->getXpathPage("ParentalGuide");
-    if (!$xpath) {
-        return '';
+    if ($xpath) {
+        $reasonNode = $xpath->query("//section[@data-testid='mpaa-rating']//p | //section[@data-testid='mpaa-rating']//span")->item(0);
+        if ($reasonNode) {
+            $this->mpaa_justification = trim($reasonNode->textContent);
+        }
     }
 
-    // Нов селектор IMDb 2025: justification може да е в <p> или <span>
-    $reasonNode = $xpath->query("//section[@data-testid='mpaa-rating']//p | //section[@data-testid='mpaa-rating']//span")->item(0);
-    if ($reasonNode) {
-        $this->mpaa_justification = trim($reasonNode->textContent);
+    // Fallback: ако няма justification, върни рейтинг от mpaa()
+    if (empty($this->mpaa_justification)) {
+        $mpaa = $this->mpaa();
+        if (!empty($mpaa['United States'])) {
+            $this->mpaa_justification = $mpaa['United States'];
+        } elseif (!empty($mpaa['USA'])) {
+            $this->mpaa_justification = $mpaa['USA'];
+        } elseif (!empty($mpaa)) {
+            $first = reset($mpaa);
+            $this->mpaa_justification = is_array($first) ? reset($first) : $first;
+        } else {
+            $this->mpaa_justification = '?';
+        }
     }
 
-    return $this->mpaa_justification ?? '';
+    return $this->mpaa_justification;
 }
 
     #----------------------------------------------[ Position in the "Top250" ]---
