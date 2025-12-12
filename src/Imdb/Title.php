@@ -1391,9 +1391,10 @@ public function mpaa_reason(): string
         return $this->mpaa_justification;
     }
 
-    // Опит за извличане на justification от ParentalGuide
-    $xpath = $this->getXpathPage("ParentalGuide");
+    // Вземи основната Title страница
+    $xpath = $this->getXpathPage("Title");
     if ($xpath) {
+        // Опит за извличане на justification от ParentalGuide секцията (ако я има)
         $reasonNode = $xpath->query("//section[@data-testid='mpaa-rating']//p | //section[@data-testid='mpaa-rating']//span")->item(0);
         if ($reasonNode) {
             $this->mpaa_justification = trim($reasonNode->textContent);
@@ -1401,7 +1402,7 @@ public function mpaa_reason(): string
 
         // Ако няма justification, пробвай сертификатите (PG, PG-13, R и т.н.)
         if (empty($this->mpaa_justification)) {
-            $ratingNode = $xpath->query("//*[@id='__next']/main/div/section[1]/section/div[3]/section/section/div[2]/div[1]/ul/li[2]/a")->item(0);
+            $ratingNode = $xpath->query("//section[@data-testid='title-details-section']//a[contains(@href,'certificates=US')]")->item(0);
             if ($ratingNode) {
                 $this->mpaa_justification = trim($ratingNode->textContent);
             }
@@ -1433,7 +1434,7 @@ public function mpaa_reason(): string
     }
 
     // Финален fallback
-    return !empty($this->mpaa_justification) ? $this->mpaa_justification : '?';
+    return !empty($this->mpaa_justification) ? $this->mpaa_justification : 'Not yet rated';
 }
 
     #----------------------------------------------[ Position in the "Top250" ]---
