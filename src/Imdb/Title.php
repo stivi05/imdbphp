@@ -1398,31 +1398,37 @@ public function mpaa_reason(): string
         if ($reasonNode) {
             $this->mpaa_justification = trim($reasonNode->textContent);
         }
+
+        // Ако няма justification, пробвай сертификатите (PG, PG-13, R и т.н.)
+        if (empty($this->mpaa_justification)) {
+            $ratingNode = $xpath->query("//*[@id='__next']/main/div/section[1]/section/div[3]/section/section/div[2]/div[1]/ul/li[2]/a")->item(0);
+            if ($ratingNode) {
+                $this->mpaa_justification = trim($ratingNode->textContent);
+            }
+        }
     }
 
-    // Ако няма justification, fallback към самия рейтинг
+    // Fallback към mpaa() масива
     if (empty($this->mpaa_justification)) {
         $mpaa = $this->mpaa();
-
-        // Най-често срещаните ключове
-        foreach (['United States', 'USA', 'US'] as $key) {
-            if (!empty($mpaa[$key])) {
-                $this->mpaa_justification = $mpaa[$key];
-                break;
+        if (!empty($mpaa)) {
+            foreach (['United States', 'USA', 'US'] as $key) {
+                if (!empty($mpaa[$key])) {
+                    $this->mpaa_justification = $mpaa[$key];
+                    break;
+                }
+            }
+            if (empty($this->mpaa_justification)) {
+                $this->mpaa_justification = reset($mpaa);
             }
         }
+    }
 
-        // Ако няма конкретен ключ, вземи първия елемент
-        if (empty($this->mpaa_justification) && !empty($mpaa)) {
-            $this->mpaa_justification = reset($mpaa);
-        }
-
-        // Ако и това липсва, пробвай JSON-LD
-        if (empty($this->mpaa_justification) && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
-            $json = json_decode($matches[1], true);
-            if (!empty($json['contentRating'])) {
-                $this->mpaa_justification = $json['contentRating'];
-            }
+    // Fallback към JSON-LD contentRating
+    if (empty($this->mpaa_justification) && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
+        $json = json_decode($matches[1], true);
+        if (!empty($json['contentRating'])) {
+            $this->mpaa_justification = $json['contentRating'];
         }
     }
 
