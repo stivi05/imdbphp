@@ -1322,41 +1322,39 @@ public function mpaa($ratings = false)
         return $this->mpaas;
     }
 
-    $xpath = $this->getXpathPage("ParentalGuide");
+    $xpath = $this->getXpathPage("Title");
     if (!$xpath) {
         return [];
     }
 
-    // НОВА IMDb структура 2024–2025
-    $cells = $xpath->query("//section[@data-testid='certificates']//li");
-
-    foreach ($cells as $cell) {
-        // Новите IMDb елементи:
-        $countryNode = $xpath->query(".//*[contains(@class,'metadata-list-summary-item__tc')]", $cell)->item(0);
-        $ratingNode  = $xpath->query(".//div[contains(@class,'ipc-metadata-list-summary-item__li')]", $cell)->item(0);
-
-        if (!$ratingNode) {
-            // fallback – някои варианти нямат това class име
-            $ratingNode = $xpath->query(".//div[contains(@class,'ipc-metadata-list-summary-item__tl')]", $cell)->item(0);
-        }
-
-        if ($countryNode && $ratingNode) {
-            $country = trim($countryNode->textContent);
-            $rating  = trim($ratingNode->textContent);
-
-            if ($ratings) {
-                $this->mpaas[$country][] = $rating;
-            } else {
-                $this->mpaas[$country] = $rating;
-            }
+    // === НОВО: Търсене на MPAA сертификат в title-details-section ===
+    $node = $xpath->query("//section[@data-testid='title-details-section']//li[@data-testid='title-details-certification']//a")->item(0);
+    if ($node) {
+        $rating = trim($node->textContent);
+        if ($rating !== '') {
+            $this->mpaas['USA'] = $rating;
+            return $this->mpaas;
         }
     }
 
-    // Стар fallback ако IMDb пак счупи структурата
-    if (empty($this->mpaas)) {
-        $node = $xpath->query("//button[contains(@href,'certificates=US')]")->item(0);
-        if ($node) {
-            $this->mpaas['USA'] = trim($node->nodeValue);
+    // === Fallback към ParentalGuide (ако IMDb показва нещо там) ===
+    $xpath = $this->getXpathPage("ParentalGuide");
+    if ($xpath) {
+        $cells = $xpath->query("//section[@data-testid='certificates']//li");
+        foreach ($cells as $cell) {
+            $countryNode = $xpath->query(".//span", $cell)->item(0);
+            $ratingNode  = $xpath->query(".//button", $cell)->item(0);
+
+            if ($countryNode && $ratingNode) {
+                $country = trim($countryNode->textContent);
+                $rating  = trim($ratingNode->textContent);
+
+                if ($ratings) {
+                    $this->mpaas[$country][] = $rating;
+                } else {
+                    $this->mpaas[$country] = $rating;
+                }
+            }
         }
     }
 
@@ -1397,37 +1395,26 @@ public function mpaa_reason(): string
         return $this->mpaa_justification;
     }
 
-    $html = $this->sSource;
-
-    // 1) JSON-LD (най-надеждно)
-    if (preg_match_all('/<script type="application\/ld\+json">(.*?)<\/script>/s', $html, $blocks)) {
-        foreach ($blocks[1] as $json) {
-            $data = json_decode($json, true);
-            if (!empty($data['contentRating'])) {
-                $this->mpaa_justification = trim($data['contentRating']);
-                return $this->mpaa_justification;
-            }
+    // Първо вземи сертификата от новата Title страница
+    $xpath = $this->getXpathPage("Title");
+    if ($xpath) {
+        $node = $xpath->query("//section[@data-testid='title-details-section']//li[@data-testid='title-details-certification']//a")->item(0);
+        if ($node) {
+            $this->mpaa_justification = trim($node->textContent);
         }
     }
 
-    // 2) meta property=“contentRating”
-    if (preg_match('/<meta[^>]+contentRating"[^>]+content="([^"]+)"/i', $html, $m)) {
-        $this->mpaa_justification = trim($m[1]);
-        return $this->mpaa_justification;
-    }
-
-    // 3) Fallback към mpaa()
-    $mpaa = $this->mpaa();
-    if (!empty($mpaa)) {
-        foreach (['United States', 'USA', 'US'] as $key) {
-            if (!empty($mpaa[$key])) {
-                $this->mpaa_justification = $mpaa[$key];
-                return $this->mpaa_justification;
-            }
+    // Fallback към mpaa()
+    if (empty($this->mpaa_justification)) {
+        $mpaa = $this->mpaa();
+        if (!empty($mpaa['USA'])) {
+            $this->mpaa_justification = $mpaa['USA'];
         }
     }
 
-    return 'Not yet rated';
+    return !empty($this->mpaa_justification)
+        ? $this->mpaa_justification
+        : 'Not yet rated';
 }
 
     #----------------------------------------------[ Position in the "Top250" ]---
