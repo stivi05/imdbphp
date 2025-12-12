@@ -1386,51 +1386,30 @@ public function mpaa($ratings = false)
      */
 public function mpaa_reason(): string
 {
-    // Ако вече имаме кеширано justification
     if (!empty($this->mpaa_justification)) {
         return $this->mpaa_justification;
     }
 
-    // Вземи основната Title страница
-    $xpath = $this->getXpathPage("Title");
+    // ВЗИМАМЕ PARENTAL GUIDE — не Title
+    $xpath = $this->getXpathPage("ParentalGuide");
     if ($xpath) {
-        // Опит за извличане на justification от ParentalGuide секцията (ако я има)
-        $reasonNode = $xpath->query("//section[@data-testid='mpaa-rating']//p | //section[@data-testid='mpaa-rating']//span")->item(0);
-        if ($reasonNode) {
-            $this->mpaa_justification = trim($reasonNode->textContent);
-        }
-
-        // Ако няма justification, пробвай US сертификатите (PG, PG-13, R и т.н.)
-        if (empty($this->mpaa_justification)) {
-            $ratingNode = $xpath->query("//section[@data-testid='title-details-section']//a[contains(@href,'certificates=US')]")->item(0);
-            if ($ratingNode) {
-                $this->mpaa_justification = trim($ratingNode->textContent);
-            }
+        // IMDb 2024 → <li data-testid="rating-certificate">Rated R for ...</li>
+        $node = $xpath->query("//li[@data-testid='rating-certificate']")->item(0);
+        if ($node) {
+            $this->mpaa_justification = trim($node->textContent);
         }
     }
 
-    // Fallback към mpaa() масива – само US ключове
-    if (empty($this->mpaa_justification)) {
-        $mpaa = $this->mpaa();
-        if (!empty($mpaa)) {
-            foreach (['United States', 'USA', 'US'] as $key) {
-                if (!empty($mpaa[$key])) {
-                    $this->mpaa_justification = $mpaa[$key];
-                    break;
-                }
-            }
-        }
-    }
+    // Ако още няма — fallback към JSON-LD
+    if (empty($this->mpaa_justification)
+        && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
 
-    // Fallback към JSON-LD contentRating
-    if (empty($this->mpaa_justification) && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
         $json = json_decode($matches[1], true);
         if (!empty($json['contentRating'])) {
             $this->mpaa_justification = $json['contentRating'];
         }
     }
 
-    // Финален fallback
     return !empty($this->mpaa_justification) ? $this->mpaa_justification : 'Not yet rated';
 }
 
