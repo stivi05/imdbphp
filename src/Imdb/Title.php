@@ -1794,7 +1794,7 @@ public function cast($short = false)
 
         $this->credits_cast[] = [
             'imdb' => $imdbId,
-            'name' => $name,
+            'actor' => $name,
             'role' => $role,
             'thumb' => $thumb,
             'photo' => $thumb,
