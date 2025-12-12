@@ -1322,38 +1322,21 @@ public function mpaa($ratings = false)
         return $this->mpaas;
     }
 
-    $xpath = $this->getXpathPage("Title");
-    if (!$xpath) {
-        return [];
-    }
+    $html = $this->getPage('Title'); // най-важно: да не е ParentalGuide
+    if (preg_match('/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s', $html, $m)) {
+        $json = json_decode($m[1], true);
 
-    // === НОВО: Търсене на MPAA сертификат в title-details-section ===
-    $node = $xpath->query("//section[@data-testid='title-details-section']//li[@data-testid='title-details-certification']//a")->item(0);
-    if ($node) {
-        $rating = trim($node->textContent);
-        if ($rating !== '') {
-            $this->mpaas['USA'] = $rating;
-            return $this->mpaas;
-        }
-    }
+        // Нов път към MPAA сертификати
+        $certs = $json['props']['pageProps']['aboveTheFoldData']['certificate'] ?? null;
 
-    // === Fallback към ParentalGuide (ако IMDb показва нещо там) ===
-    $xpath = $this->getXpathPage("ParentalGuide");
-    if ($xpath) {
-        $cells = $xpath->query("//section[@data-testid='certificates']//li");
-        foreach ($cells as $cell) {
-            $countryNode = $xpath->query(".//span", $cell)->item(0);
-            $ratingNode  = $xpath->query(".//button", $cell)->item(0);
-
-            if ($countryNode && $ratingNode) {
-                $country = trim($countryNode->textContent);
-                $rating  = trim($ratingNode->textContent);
-
-                if ($ratings) {
-                    $this->mpaas[$country][] = $rating;
-                } else {
-                    $this->mpaas[$country] = $rating;
-                }
+        if (!empty($certs)) {
+            // Пример: "PG-13 (USA)" → разделяне
+            if (preg_match('/(.*?)\s*\((.*?)\)/', $certs, $mm)) {
+                $rating = trim($mm[1]);
+                $country = trim($mm[2]);
+                $this->mpaas[$country] = $rating;
+            } else {
+                $this->mpaas['USA'] = $certs;
             }
         }
     }
@@ -1395,26 +1378,16 @@ public function mpaa_reason(): string
         return $this->mpaa_justification;
     }
 
-    // Първо вземи сертификата от новата Title страница
-    $xpath = $this->getXpathPage("Title");
-    if ($xpath) {
-        $node = $xpath->query("//section[@data-testid='title-details-section']//li[@data-testid='title-details-certification']//a")->item(0);
-        if ($node) {
-            $this->mpaa_justification = trim($node->textContent);
+    $html = $this->getPage("Title");
+    if (preg_match('/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s', $html, $m)) {
+        $json = json_decode($m[1], true);
+        $cr = $json['props']['pageProps']['aboveTheFoldData']['certificateReason'] ?? null;
+        if (!empty($cr)) {
+            return $this->mpaa_justification = trim($cr);
         }
     }
 
-    // Fallback към mpaa()
-    if (empty($this->mpaa_justification)) {
-        $mpaa = $this->mpaa();
-        if (!empty($mpaa['USA'])) {
-            $this->mpaa_justification = $mpaa['USA'];
-        }
-    }
-
-    return !empty($this->mpaa_justification)
-        ? $this->mpaa_justification
-        : 'Not yet rated';
+    return 'Not yet rated';
 }
 
     #----------------------------------------------[ Position in the "Top250" ]---
