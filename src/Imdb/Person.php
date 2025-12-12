@@ -135,18 +135,41 @@ class Person extends MdbBase
      * @return string name full name of the person
      * @see IMDB person page / (Main page)
      */
-    public function name()
-    {
+   public function name()
+{
+    if (empty($this->fullname)) {
+        $page = $this->getPage("Name");
+
+        // Първо пробвай стария regex върху <title>
+        if (preg_match("/<title>(.*?) - IMDb<\/title>/i", $page, $match)) {
+            $this->fullname = trim($match[1]);
+        } elseif (preg_match("/<title>IMDb - (.*?)<\/title>/i", $page, $match)) {
+            $this->fullname = trim($match[1]);
+        }
+
+        // Ако пак е празно, пробвай новия селектор
         if (empty($this->fullname)) {
-            $page = $this->getPage("Name");
-            if (preg_match("/<title>(.*?) - IMDb<\/title>/i", $page, $match)) {
-                $this->fullname = trim($match[1]);
-            } elseif (preg_match("/<title>IMDb - (.*?)<\/title>/i", $page, $match)) {
-                $this->fullname = trim($match[1]);
+            $dom = new \DOMDocument();
+            @$dom->loadHTML($page);
+            $xpath = new \DOMXPath($dom);
+
+            // IMDb вече държи името в <h1 data-testid="hero__pageTitle">
+            $node = $xpath->query("//h1[@data-testid='hero__pageTitle']")->item(0);
+            if ($node) {
+                $this->fullname = trim($node->nodeValue);
+            }
+
+            // fallback: ако парсваш cast блокове
+            if (empty($this->fullname)) {
+                $node = $xpath->query("//a[@data-testid='title-cast-item__actor']")->item(0);
+                if ($node) {
+                    $this->fullname = trim($node->nodeValue);
+                }
             }
         }
-        return $this->fullname;
     }
+    return $this->fullname;
+}
 
     #--------------------------------------------------------[ Photo specific ]---
 
