@@ -1738,8 +1738,6 @@ public function cast($short = false)
     }
 
     $page = $this->getPage("Title");
-    // DEBUG: запиши HTML-а в файл, за да видиш какво идва от IMDb
-    file_put_contents(__DIR__ . '/debug_cast.html', $page);
     
     if (empty($page)) {
         return [];
@@ -1770,8 +1768,16 @@ public function cast($short = false)
         $seen[$imdbId] = true;
 
         // Име (актьор)
-        $nameNode = $xpath->query(".//a[contains(@data-testid,'title-cast-item__actor')]", $castItem)->item(0);
-        $name = $nameNode ? trim($nameNode->nodeValue) : trim($actorLink->nodeValue);
+        //$nameNode = $xpath->query(".//a[contains(@data-testid,'title-cast-item__actor')]", $castItem)->item(0);
+        //$name = $nameNode ? trim($nameNode->nodeValue) : trim($actorLink->nodeValue);
+        // Име (актьор)
+        $nameNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $castItem)->item(0);
+        if (!$nameNode) {
+        // fallback: вземи първия <a> с /name/
+        $nameNode = $xpath->query(".//a[contains(@href,'/name/')]", $castItem)->item(0);
+       }
+        $name = $nameNode ? trim($nameNode->nodeValue) : "";
+
 
         // Роля, ако има
         $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $castItem)->item(0);
