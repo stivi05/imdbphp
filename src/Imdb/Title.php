@@ -1400,7 +1400,7 @@ public function mpaa_reason(): string
             $this->mpaa_justification = trim($reasonNode->textContent);
         }
 
-        // Ако няма justification, пробвай сертификатите (PG, PG-13, R и т.н.)
+        // Ако няма justification, пробвай US сертификатите (PG, PG-13, R и т.н.)
         if (empty($this->mpaa_justification)) {
             $ratingNode = $xpath->query("//section[@data-testid='title-details-section']//a[contains(@href,'certificates=US')]")->item(0);
             if ($ratingNode) {
@@ -1409,7 +1409,7 @@ public function mpaa_reason(): string
         }
     }
 
-    // Fallback към mpaa() масива
+    // Fallback към mpaa() масива – само US ключове
     if (empty($this->mpaa_justification)) {
         $mpaa = $this->mpaa();
         if (!empty($mpaa)) {
@@ -1418,9 +1418,6 @@ public function mpaa_reason(): string
                     $this->mpaa_justification = $mpaa[$key];
                     break;
                 }
-            }
-            if (empty($this->mpaa_justification)) {
-                $this->mpaa_justification = reset($mpaa);
             }
         }
     }
