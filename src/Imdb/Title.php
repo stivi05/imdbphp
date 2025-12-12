@@ -1386,10 +1386,12 @@ public function mpaa($ratings = false)
      */
 public function mpaa_reason(): string
 {
+    // Ако вече имаме кеширано justification
     if (!empty($this->mpaa_justification)) {
         return $this->mpaa_justification;
     }
 
+    // Опит за извличане на justification от ParentalGuide
     $xpath = $this->getXpathPage("ParentalGuide");
     if ($xpath) {
         $reasonNode = $xpath->query("//section[@data-testid='mpaa-rating']//p | //section[@data-testid='mpaa-rating']//span")->item(0);
@@ -1398,28 +1400,34 @@ public function mpaa_reason(): string
         }
     }
 
-    // Fallback: ако няма justification, върни рейтинг от mpaa() или JSON-LD
+    // Ако няма justification, fallback към самия рейтинг
     if (empty($this->mpaa_justification)) {
         $mpaa = $this->mpaa();
-        if (!empty($mpaa['United States'])) {
-            $this->mpaa_justification = $mpaa['United States'];
-        } elseif (!empty($mpaa['USA'])) {
-            $this->mpaa_justification = $mpaa['USA'];
-        } elseif (!empty($mpaa)) {
-            $first = reset($mpaa);
-            $this->mpaa_justification = is_array($first) ? reset($first) : $first;
-        } else {
-            // JSON-LD fallback
-            if (preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
-                $json = json_decode($matches[1], true);
-                if (!empty($json['contentRating'])) {
-                    $this->mpaa_justification = $json['contentRating'];
-                }
+
+        // Най-често срещаните ключове
+        foreach (['United States', 'USA', 'US'] as $key) {
+            if (!empty($mpaa[$key])) {
+                $this->mpaa_justification = $mpaa[$key];
+                break;
+            }
+        }
+
+        // Ако няма конкретен ключ, вземи първия елемент
+        if (empty($this->mpaa_justification) && !empty($mpaa)) {
+            $this->mpaa_justification = reset($mpaa);
+        }
+
+        // Ако и това липсва, пробвай JSON-LD
+        if (empty($this->mpaa_justification) && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
+            $json = json_decode($matches[1], true);
+            if (!empty($json['contentRating'])) {
+                $this->mpaa_justification = $json['contentRating'];
             }
         }
     }
 
-    return $this->mpaa_justification ?? '?';
+    // Финален fallback
+    return !empty($this->mpaa_justification) ? $this->mpaa_justification : '?';
 }
 
     #----------------------------------------------[ Position in the "Top250" ]---
