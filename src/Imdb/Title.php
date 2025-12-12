@@ -1738,7 +1738,6 @@ public function cast($short = false)
     }
 
     $page = $this->getPage("Title");
-    
     if (empty($page)) {
         return [];
     }
@@ -1747,17 +1746,16 @@ public function cast($short = false)
     @$dom->loadHTML($page);
     $xpath = new \DOMXPath($dom);
 
-    // IMDb 2024–2025 cast selector (взима блоковете)
+    // IMDb 2024–2025 cast selector
     $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
 
     $seen = [];
-    $limit = 8;             // показваме само първите 8 актьора
+    $limit = 8;
     $count = 0;
 
     foreach ($nodes as $castItem) {
         if ($count >= $limit) break;
 
-        // Намери първия линк към актьор (трябва да съдържа /name/)
         $actorLink = $xpath->query(".//a[contains(@href,'/name/')]", $castItem)->item(0);
         if (!$actorLink) continue;
 
@@ -1767,34 +1765,34 @@ public function cast($short = false)
         if (isset($seen[$imdbId])) continue;
         $seen[$imdbId] = true;
 
-        // Име (актьор)
-        //$nameNode = $xpath->query(".//a[contains(@data-testid,'title-cast-item__actor')]", $castItem)->item(0);
-        //$name = $nameNode ? trim($nameNode->nodeValue) : trim($actorLink->nodeValue);
-        // Име (актьор)
+        // Име
         $nameNode = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $castItem)->item(0);
         if (!$nameNode) {
-        // fallback: вземи първия <a> с /name/
-        $nameNode = $xpath->query(".//a[contains(@href,'/name/')]", $castItem)->item(0);
-       }
+            $nameNode = $xpath->query(".//a[contains(@href,'/name/')]", $castItem)->item(0);
+        }
         $name = $nameNode ? trim($nameNode->nodeValue) : "";
 
-
-        // Роля, ако има
+        // Роля
         $roleNode = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span", $castItem)->item(0);
         $role = $roleNode ? trim($roleNode->nodeValue) : "";
 
-        // Thumb: взимаме src (или data-src) от img
+        // Thumb
         $imgNode = $xpath->query(".//img", $castItem)->item(0);
         $thumb = "";
         if ($imgNode) {
-            $thumb = $imgNode->getAttribute("src") ?: $imgNode->getAttribute("data-src") ?: "";
-            // normalize relative urls if any
+            $thumb = $imgNode->getAttribute("src")
+                ?: $imgNode->getAttribute("srcset")
+                ?: $imgNode->getAttribute("data-src")
+                ?: "";
+            if (strpos($thumb, ' ') !== false) {
+                $thumb = explode(' ', $thumb)[0];
+            }
             if ($thumb && strpos($thumb, '//') === 0) $thumb = 'https:' . $thumb;
         }
 
         $this->credits_cast[] = [
             'imdb' => $imdbId,
-            'actor' => $name,
+            'name' => $name,
             'role' => $role,
             'thumb' => $thumb,
             'photo' => $thumb,
@@ -1807,6 +1805,23 @@ public function cast($short = false)
         ];
 
         $count++;
+    }
+
+    // 🔎 JSON-LD fallback ако няма резултати
+    if (empty($this->credits_cast) && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $page, $m)) {
+        $json = json_decode($m[1], true);
+        if (!empty($json['actor'])) {
+            foreach ($json['actor'] as $actor) {
+                $this->credits_cast[] = [
+                    'imdb' => $actor['url'] ?? '',
+                    'name' => $actor['name'] ?? '',
+                    'role' => $actor['character'] ?? '',
+                    'thumb' => $actor['image'] ?? '',
+                    'photo' => $actor['image'] ?? '',
+                    'credited' => true,
+                ];
+            }
+        }
     }
 
     return $this->credits_cast;
