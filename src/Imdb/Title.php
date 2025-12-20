@@ -1683,24 +1683,25 @@ private function matchImdbId($href)
      * @see IMDB page /fullcredits
      */
     
-public function cast($short = false, $limit = 0)
+public function cast($short = false, $limit = 8)  // Default лимит 8!
 {
-    // Определяме кой cache да използваме
-    $cache_key = $short ? 'credits_cast_short' : 'credits_cast';
+    // Ако искаме повече от 12, тогава взимаме пълния cast
+    if ($limit > 12) {
+        $short = false;
+    }
     
-    if ($short) {
-        // За кратък cast винаги използваме cast_short()
-        $cast_data = $this->cast_short();
-    } elseif (empty($this->credits_cast)) {
-        // За пълен cast, ако няма кеш - вземаме кратък и кешираме
-        $cast_data = $this->cast_short();
-        $this->credits_cast = $cast_data;
+    if ($short || empty($this->credits_cast)) {
+        $cast_data = $this->cast_short($limit); // Подаваме лимита!
+        
+        if (!$short) {
+            $this->credits_cast = $cast_data;
+        }
     } else {
         $cast_data = $this->credits_cast;
     }
     
-    // Прилагане на лимит
-    if ($limit > 0 && !empty($cast_data)) {
+    // Вече cast_short() връща с лимит, но за всеки случай:
+    if ($limit > 0 && !empty($cast_data) && count($cast_data) > $limit) {
         return array_slice($cast_data, 0, $limit);
     }
     
