@@ -35,6 +35,12 @@ class Request
 {
     $this->config = $config;
     $this->ch = curl_init($url);
+
+    // ДОБАВЕТЕ ТЕЗИ 3 РЕДА ЗА TIMEOUT:
+    curl_setopt($this->ch, CURLOPT_TIMEOUT, $config->curl_timeout ?? 10); // 10 секунди
+    curl_setopt($this->ch, CURLOPT_CONNECTTIMEOUT, $config->curl_connect_timeout ?? 5); // 5 секунди
+    curl_setopt($this->ch, CURLOPT_TIMEOUT_MS, ($config->curl_timeout ?? 10) * 1000); // в милисекун
+    
     curl_setopt($this->ch, CURLOPT_ENCODING, "gzip, deflate");
     curl_setopt($this->ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($this->ch, CURLOPT_HEADERFUNCTION, array(&$this, "callback_CURLOPT_HEADERFUNCTION"));
