@@ -1940,40 +1940,54 @@ public function cast($short = false)
      * @see IMDB page /fullcredits
      */
     public function writing()
-    {
-        if (empty($this->credits_writing)) {
-            $page = $this->getPage("Credits");
-            if (empty($page)) {
-                return array(); // no such page
-            }
-        }
-        $writing_rows = $this->get_table_rows($this->page["Credits"], "Writing Credits");
-        if (!$writing_rows) {
-            $writing_rows = $this->get_table_rows($this->page["Credits"], "Series Writing Credits");
-        }
-        if (!$writing_rows) {
-            return array();
-        }
-        for ($i = 0; $i < count($writing_rows); $i++) {
-            $wrt = array();
-            if (preg_match('!<a\s+href="/name/nm(\d+)/[^>]*>\s*(.+)\s*</a>!ims', $writing_rows[$i], $match)) {
-                $wrt['imdb'] = $match[1];
-                $wrt['name'] = trim($match[2]);
-            } elseif (preg_match('!<td\s+class="name">(.+?)</td!ims', $writing_rows[$i], $match)) {
-                $wrt['imdb'] = '';
-                $wrt['name'] = trim($match[1]);
-            } else {
-                continue;
-            }
-            if (preg_match('!<td\s+class="credit"\s*>\s*(.+?)\s*</td>!ims', $writing_rows[$i], $match)) {
-                $wrt['role'] = trim($match[1]);
-            } else {
-                $wrt['role'] = null;
-            }
-            $this->credits_writing[] = $wrt;
-        }
+{
+    if (!empty($this->credits_writing)) {
         return $this->credits_writing;
     }
+    
+    // Опитайте да вземете writers от главната страница вместо Credits
+    $xpath = $this->getXpathPage("Title");
+    if (!$xpath) {
+        return [];
+    }
+    
+    // Търсете writers в секцията "Creators" или "Writers"
+    $writers = [];
+    
+    // Селектор 1: Нова IMDB структура
+    $nodes = $xpath->query("//li[@data-testid='title-pc-principal-credit']//a[contains(@href, '/name/nm')]");
+    
+    // Селектор 2: В секция "Writers"
+    if ($nodes->length === 0) {
+        $nodes = $xpath->query("//div[contains(text(), 'Writers')]/following-sibling::div//a[contains(@href, '/name/nm')]");
+    }
+    
+    // Селектор 3: Просто всички линкове към хора
+    if ($nodes->length === 0) {
+        $nodes = $xpath->query("//a[contains(@href, '/name/nm') and contains(text(), 'Writer')]/preceding-sibling::a[1]");
+    }
+    
+    foreach ($nodes as $node) {
+        $name = trim($node->textContent);
+        $href = $node->getAttribute('href');
+        
+        if (preg_match('#/name/(nm\d+)#', $href, $match)) {
+            $writers[] = [
+                'imdb' => $match[1],
+                'name' => $name,
+                'role' => 'Writer'
+            ];
+        }
+        
+        // Ограничете броя
+        if (count($writers) >= 5) {
+            break;
+        }
+    }
+    
+    $this->credits_writing = $writers;
+    return $this->credits_writing;
+}
 
     #-------------------------------------------------------------[ Producers ]---
 
