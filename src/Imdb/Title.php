@@ -2346,46 +2346,57 @@ public function cast($short = false)
      * @see IMDB page /trailers
      */
     public function trailers($full = false)
-    {
-        if (empty($this->trailers)) {
-            $page = $this->getPage("Trailers");
-            if (empty($page)) {
-                return array();
-            } // no such page
-
-            $has_trailers = strpos($page, '<div class="search-results"><ol>');
-            if ($has_trailers !== false) {
-                $html_trailer = substr(
-                    $page,
-                    $has_trailers,
-                    strpos($page, '</ol>', $has_trailers) - ($has_trailers + 1)
-                );
-                $doc = new \DOMDocument();
-                @$doc->loadHTML('<?xml encoding="UTF-8">' . $html_trailer);
-                foreach ($doc->getElementsByTagName('li') as $trailerNode) {
-                    $titleNode = $trailerNode->getElementsByTagName('a')->item(1);
-                    $title = $titleNode->nodeValue;
-                    $url = "https://" . $this->imdbsite . $titleNode->getAttribute('href');
-                    $imageUrl = $trailerNode->getElementsByTagName('img')->item(0)->getAttribute('loadlate');
-                    $res = (strpos($imageUrl, 'HDIcon') !== false) ? 'HD' : 'SD';
-
-                    if ($full) {
-                        $this->trailers[] = array(
-                            'title' => $title,
-                            'url' => $url,
-                            'resolution' => $res,
-                            'lang' => '',
-                            'restful_url' => ''
-                        );
-                    } else {
-                        $this->trailers[] = $url;
-                    }
-                }
-            }
-        }
+{
+    if (!empty($this->trailers)) {
         return $this->trailers;
     }
-
+    
+    // Опитайте новата IMDB структура
+    $xpath = $this->getXpathPage("Title");
+    if (!$xpath) {
+        return [];
+    }
+    
+    $this->trailers = [];
+    
+    // Селектор 1: Трейлъри в главната страница
+    $nodes = $xpath->query("//a[contains(@href, '/video/') and contains(@href, 'vi')]");
+    
+    // Селектор 2: В секция "Videos"
+    if ($nodes->length === 0) {
+        $nodes = $xpath->query("//section[@data-testid='videos']//a[contains(@href, '/video/')]");
+    }
+    
+    foreach ($nodes as $node) {
+        $title = trim($node->textContent);
+        $href = $node->getAttribute('href');
+        
+        if (empty($title)) {
+            $title = 'Trailer';
+        }
+        
+        $url = "https://www.imdb.com" . $href;
+        
+        if ($full) {
+            $this->trailers[] = [
+                'title' => $title,
+                'url' => $url,
+                'resolution' => 'HD',
+                'lang' => 'en',
+                'restful_url' => ''
+            ];
+        } else {
+            $this->trailers[] = $url;
+        }
+        
+        // Ограничете
+        if (count($this->trailers) >= 3) {
+            break;
+        }
+    }
+    
+    return $this->trailers;
+}
 
     #===========================================================[ /videosites ]===
     #--------------------------------------------------------[ content helper ]---
