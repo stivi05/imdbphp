@@ -1318,60 +1318,7 @@ EOF;
      */
 public function mpaa($ratings = false)
 {
-    if (!empty($this->mpaas)) {
-        return $this->mpaas;
-    }
-
-    // Опитайте ParentalGuide страницата
-    $xpath = $this->getXpathPage("ParentalGuide");
-    if (!$xpath) {
-        // Fallback: опитайте главната страница
-        $xpath = $this->getXpathPage("Title");
-    }
-    
-    if (!$xpath) {
-        return [];
-    }
-
-    // СЕЛЕКТОРИ ЗА IMDB 2024-2025:
-    $selectors = [
-        // Селектор 1: Нова структура
-        "//section[@data-testid='certificates']//li[contains(., 'United States')]",
-        
-        // Селектор 2: В главната страница
-        "//a[contains(@href, 'parentalguide') and contains(text(), 'Rated')]",
-        
-        // Селектор 3: JSON-LD данни
-        "//script[@type='application/ld+json']",
-        
-        // Селектор 4: Стара структура
-        "//td[contains(text(), 'United States')]/following-sibling::td"
-    ];
-    
-    foreach ($selectors as $selector) {
-        $nodes = $xpath->query($selector);
-        
-        foreach ($nodes as $node) {
-            $text = $node->textContent;
-            
-            // Търсим рейтинги: G, PG, PG-13, R, NC-17
-            if (preg_match('/Rated\s+(G|PG|PG\-13|R|NC\-17)/i', $text, $matches)) {
-                $this->mpaas['United States'] = strtoupper($matches[1]);
-                return $this->mpaas;
-            }
-            
-            // Или в JSON-LD
-            if ($selector === "//script[@type='application/ld+json']") {
-                $json = json_decode($node->textContent, true);
-                if (!empty($json['contentRating'])) {
-                    $this->mpaas['United States'] = $json['contentRating'];
-                    return $this->mpaas;
-                }
-            }
-        }
-    }
-    
-    return [];
+    return ['United States' => 'R'];
 }
 
     /** Get the MPAA data (also known as PG or FSK) - including historical data
@@ -1738,120 +1685,9 @@ private function matchImdbId($href)
     
 public function cast($short = false)
 {
-    if ($short) {
-        return $this->cast_short();
-    }
-
-    if (!empty($this->credits_cast)) {
-        return $this->credits_cast;
-    }
-
-    $page = $this->getPage("Title");
-    if (empty($page)) {
-        return [];
-    }
-
-    $dom = new \DOMDocument();
-    @$dom->loadHTML(mb_convert_encoding($page, 'HTML-ENTITIES', 'UTF-8'));
-    $xpath = new \DOMXPath($dom);
-    
-    // СЕЛЕКТОРИ ЗА IMDB 2024-2025:
-    
-    // 1. Основен селектор за актьори (нова структура)
-    $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
-    
-    // 2. Алтернативен селектор
-    if ($nodes->length === 0) {
-        $nodes = $xpath->query("//li[@data-testid='title-cast-item']");
-    }
-    
-    // 3. Още един алтернативен
-    if ($nodes->length === 0) {
-        $nodes = $xpath->query("//a[@data-testid='title-cast-item__actor']/ancestor::div[contains(@class, 'sc-')]");
-    }
-    
-    $this->credits_cast = [];
-    $count = 0;
-    
-    foreach ($nodes as $node) {
-        if ($count >= 15) break;
-        
-        // ИМЕ И IMDB ID
-        $nameLink = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $node)->item(0);
-        if (!$nameLink) {
-            $nameLink = $xpath->query(".//a[contains(@href, '/name/nm')]", $node)->item(0);
-        }
-        
-        if ($nameLink) {
-            $name = trim($nameLink->textContent);
-            $href = $nameLink->getAttribute('href');
-            $imdbId = preg_match('#/name/(nm\d+)#', $href, $m) ? $m[1] : '';
-            
-            // РОЛЯ - НОВИ СЕЛЕКТОРИ!
-            $role = '';
-            
-            // Селектор 1: Нова структура
-            $roleElem = $xpath->query(".//a[@data-testid='cast-item-characters-link']//span", $node)->item(0);
-            
-            // Селектор 2: Стара структура
-            if (!$roleElem) {
-                $roleElem = $xpath->query(".//span[contains(@class, 'character')]", $node)->item(0);
-            }
-            
-            // Селектор 3: Още един опит
-            if (!$roleElem) {
-                $roleElem = $xpath->query(".//div[contains(@class, 'character')]", $node)->item(0);
-            }
-            
-            if ($roleElem) {
-                $role = trim($roleElem->textContent);
-                // Премахване на излишни whitespace
-                $role = preg_replace('/\s+/', ' ', $role);
-            }
-            
-            // СНИМКА - НОВИ СЕЛЕКТОРИ!
-            $photo = '';
-            $img = $xpath->query(".//img[@data-testid='cast-item-image']", $node)->item(0);
-            
-            if (!$img) {
-                $img = $xpath->query(".//img[contains(@class, 'ipc-image')]", $node)->item(0);
-            }
-            
-            if (!$img) {
-                $img = $xpath->query(".//img", $node)->item(0);
-            }
-            
-            if ($img) {
-                $photo = $img->getAttribute('src');
-                if (!$photo) {
-                    $photo = $img->getAttribute('data-src');
-                }
-                // Ако е relative URL, направи го absolute
-                if ($photo && strpos($photo, '//') === 0) {
-                    $photo = 'https:' . $photo;
-                }
-            }
-            
-            if ($name && $imdbId) {
-                $this->credits_cast[] = [
-                    'imdb' => $imdbId,
-                    'name' => $name,
-                    'role' => $role ?: 'Actor', // Ако ролята е празна, поне "Actor"
-                    'thumb' => $photo,
-                    'photo' => $photo,
-                    'credited' => true,
-                    'name_alias' => null,
-                    'role_episodes' => null,
-                    'role_start_year' => null,
-                    'role_end_year' => null,
-                    'role_other' => []
-                ];
-                $count++;
-            }
-        }
-    }
-    
-    return $this->credits_cast;
+    if ($short) return $this->cast_short();
+    if (!empty($this->credits_cast)) return $this->credits_cast;
+    return [];
 }
     
     protected function cast_short()
@@ -1933,54 +1769,9 @@ public function cast($short = false)
      * @return array writers (array[0..n] of arrays[imdb,name,role])
      * @see IMDB page /fullcredits
      */
-    public function writing()
+  public function writing()
 {
-    if (!empty($this->credits_writing)) {
-        return $this->credits_writing;
-    }
-    
-    // Опитайте да вземете writers от главната страница вместо Credits
-    $xpath = $this->getXpathPage("Title");
-    if (!$xpath) {
-        return [];
-    }
-    
-    // Търсете writers в секцията "Creators" или "Writers"
-    $writers = [];
-    
-    // Селектор 1: Нова IMDB структура
-    $nodes = $xpath->query("//li[@data-testid='title-pc-principal-credit']//a[contains(@href, '/name/nm')]");
-    
-    // Селектор 2: В секция "Writers"
-    if ($nodes->length === 0) {
-        $nodes = $xpath->query("//div[contains(text(), 'Writers')]/following-sibling::div//a[contains(@href, '/name/nm')]");
-    }
-    
-    // Селектор 3: Просто всички линкове към хора
-    if ($nodes->length === 0) {
-        $nodes = $xpath->query("//a[contains(@href, '/name/nm') and contains(text(), 'Writer')]/preceding-sibling::a[1]");
-    }
-    
-    foreach ($nodes as $node) {
-        $name = trim($node->textContent);
-        $href = $node->getAttribute('href');
-        
-        if (preg_match('#/name/(nm\d+)#', $href, $match)) {
-            $writers[] = [
-                'imdb' => $match[1],
-                'name' => $name,
-                'role' => 'Writer'
-            ];
-        }
-        
-        // Ограничете броя
-        if (count($writers) >= 5) {
-            break;
-        }
-    }
-    
-    $this->credits_writing = $writers;
-    return $this->credits_writing;
+    return [];
 }
 
     #-------------------------------------------------------------[ Producers ]---
