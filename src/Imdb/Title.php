@@ -1713,82 +1713,40 @@ protected function cast_short()
         return $this->credits_cast_short;
     }
 
-    $xpath = $this->getXpathPage("Title");
-    
-    // ИЗПОЛЗВАМЕ ПРАВИЛНИЯ XPath КАТО В РАБОТЕЩИЯ МЕТОД
-    $nodes = $xpath->query('//section[@data-testid="title-cast"]//a[@data-testid="title-cast-item__actor"]');
-    
-    if (!$nodes || $nodes->length === 0) {
-        // Fallback: опитай алтернативен XPath
-        $nodes = $xpath->query('//div[@data-testid="title-cast-item"]//a[@data-testid="title-cast-item__actor"]');
-    }
+    $html = $this->getPage("Title");
     
     $this->credits_cast_short = [];
     
-    foreach ($nodes as $node) {
-        $dir = array(
-            'imdb' => null,
-            'name' => null,
-            'name_alias' => null,
-            'credited' => true,
-            'role' => null,
-            'role_episodes' => null,
-            'role_start_year' => null,
-            'role_end_year' => null,
-            'role_other' => array(),
-            'thumb' => "",
-            'photo' => ""
-        );
+    // ТОЧЕН РЕГЕКС ЗА IMDB АКТЬОРСКИ СНИМКИ
+    preg_match_all('/<img[^>]*alt="([^"]+)"[^>]*src="(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+\._V1_[^"]+\.jpg)"[^>]*>/', $html, $matches, PREG_SET_ORDER);
+    
+    $count = 0;
+    foreach ($matches as $match) {
+        if ($count >= 8) break;
         
-        // Име и IMDB ID
-        $href = $node->getAttribute("href");
-        if (preg_match('/\/name\/nm(\d+)\//', $href, $matches)) {
-            $dir['imdb'] = $matches[1];
-        }
-        $dir["name"] = trim($node->nodeValue);
+        $name = trim($match[1]);
+        $thumb = trim($match[2]);
         
-        if (empty($dir['name'])) {
+        // Пропускаме логота и икони
+        if (strlen($name) < 2 || stripos($name, 'IMDb') !== false) {
             continue;
         }
         
-        // Намери родителския div на актьора
-        $parentDiv = $node;
-        while ($parentDiv && (!property_exists($parentDiv, 'tagName') || $parentDiv->tagName !== 'div')) {
-            $parentDiv = $parentDiv->parentNode;
-        }
+        $this->credits_cast_short[] = [
+            'imdb' => '',
+            'name' => html_entity_decode($name, ENT_QUOTES, 'UTF-8'),
+            'name_alias' => null,
+            'credited' => true,
+            'role' => '',
+            'role_episodes' => null,
+            'role_start_year' => null,
+            'role_end_year' => null,
+            'role_other' => [],
+            'thumb' => $thumb,
+            'photo' => str_replace('._V1_', '.', $thumb) // премахва thumbnail параметрите
+        ];
         
-        if ($parentDiv) {
-            // Роля
-            $roleNode = $xpath->query('.//a[@data-testid="cast-item-characters-link"]//span', $parentDiv);
-            if ($roleNode && $roleNode->length > 0) {
-                $dir["role"] = trim($roleNode->item(0)->nodeValue);
-            }
-            
-            // СНИМКА - ТУК Е КЛЮЧОВОТО!
-            // Използваме същия XPath като в работния метод
-            $imgNodes = $xpath->query('.//img[@alt]', $parentDiv);
-            if ($imgNodes && $imgNodes->length > 0) {
-                $img = $imgNodes->item(0);
-                $src = $img->getAttribute('src');
-                if (!$src) {
-                    $src = $img->getAttribute('data-src');
-                }
-                if (!$src) {
-                    $src = $img->getAttribute('loadlate');
-                }
-                
-                if ($src) {
-                    $dir["thumb"] = trim($src);
-                    if (strpos($dir["thumb"], '._V1')) {
-                        $dir["photo"] = preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $dir["thumb"]);
-                    } else {
-                        $dir["photo"] = $dir["thumb"];
-                    }
-                }
-            }
-        }
-        
-        $this->credits_cast_short[] = $dir;
+        $count++;
     }
     
     return $this->credits_cast_short;
@@ -1800,10 +1758,41 @@ protected function cast_short()
      * @return array writers (array[0..n] of arrays[imdb,name,role])
      * @see IMDB page /fullcredits
      */
-  public function writing()
-{
-    return [];
-}
+public function writing()
+    {
+        if (empty($this->credits_writing)) {
+            $page = $this->getPage("Credits");
+            if (empty($page)) {
+                return array(); // no such page
+            }
+        }
+        $writing_rows = $this->get_table_rows($this->page["Credits"], "Writing Credits");
+        if (!$writing_rows) {
+            $writing_rows = $this->get_table_rows($this->page["Credits"], "Series Writing Credits");
+        }
+        if (!$writing_rows) {
+            return array();
+        }
+        for ($i = 0; $i < count($writing_rows); $i++) {
+            $wrt = array();
+            if (preg_match('!<a\s+href="/name/nm(\d+)/[^>]*>\s*(.+)\s*</a>!ims', $writing_rows[$i], $match)) {
+                $wrt['imdb'] = $match[1];
+                $wrt['name'] = trim($match[2]);
+            } elseif (preg_match('!<td\s+class="name">(.+?)</td!ims', $writing_rows[$i], $match)) {
+                $wrt['imdb'] = '';
+                $wrt['name'] = trim($match[1]);
+            } else {
+                continue;
+            }
+            if (preg_match('!<td\s+class="credit"\s*>\s*(.+?)\s*</td>!ims', $writing_rows[$i], $match)) {
+                $wrt['role'] = trim($match[1]);
+            } else {
+                $wrt['role'] = null;
+            }
+            $this->credits_writing[] = $wrt;
+        }
+        return $this->credits_writing;
+    }
 
     #-------------------------------------------------------------[ Producers ]---
 
