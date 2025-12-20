@@ -1713,43 +1713,35 @@ protected function cast_short()
         return $this->credits_cast_short;
     }
 
-    $html = $this->getPage("Title");
-    
-    $this->credits_cast_short = [];
-    
-    // ТОЧЕН РЕГЕКС ЗА IMDB АКТЬОРСКИ СНИМКИ
-    preg_match_all('/<img[^>]*alt="([^"]+)"[^>]*src="(https:\/\/m\.media-amazon\.com\/images\/M\/[^"]+\._V1_[^"]+\.jpg)"[^>]*>/', $html, $matches, PREG_SET_ORDER);
-    
-    $count = 0;
-    foreach ($matches as $match) {
-        if ($count >= 8) break;
+    // ОПИТАЙ ДА ВЗЕМЕШ HTML С TIMEOUT
+    try {
+        $html = $this->getPage("Title");
         
-        $name = trim($match[1]);
-        $thumb = trim($match[2]);
-        
-        // Пропускаме логота и икони
-        if (strlen($name) < 2 || stripos($name, 'IMDb') !== false) {
-            continue;
+        if (empty($html)) {
+            return [];
         }
         
-        $this->credits_cast_short[] = [
-            'imdb' => '',
-            'name' => html_entity_decode($name, ENT_QUOTES, 'UTF-8'),
-            'name_alias' => null,
-            'credited' => true,
-            'role' => '',
-            'role_episodes' => null,
-            'role_start_year' => null,
-            'role_end_year' => null,
-            'role_other' => [],
-            'thumb' => $thumb,
-            'photo' => str_replace('._V1_', '.', $thumb) // премахва thumbnail параметрите
-        ];
+        // БЪРЗ РЕГЕКС - НЯМА ГОЛЯМО ПАРСВАНЕ
+        $this->credits_cast_short = [];
+        preg_match_all('/<img[^>]*src="(https:[^"]+\._V1_UX100_[^"]+\.jpg)"[^>]*>/', $html, $matches);
         
-        $count++;
+        foreach ($matches[1] as $img_url) {
+            $this->credits_cast_short[] = [
+                'thumb' => $img_url,
+                'photo' => str_replace('._V1_', '.', $img_url),
+                'name' => 'Actor',
+                'role' => ''
+            ];
+            
+            if (count($this->credits_cast_short) >= 6) break;
+        }
+        
+        return $this->credits_cast_short;
+        
+    } catch (Exception $e) {
+        // ПРИ ГРЕШКА ВРЪЩАЙ ПРАЗЕН МАСИВ
+        return [];
     }
-    
-    return $this->credits_cast_short;
 }
 
     #---------------------------------------------------------------[ Writers ]---
