@@ -20,6 +20,8 @@ namespace Imdb;
  */
 class Config
 {
+    public $curl_timeout = 10; // 10 секунди общ timeout
+    public $curl_connect_timeout = 5; // 5 секунди за свързване
     /**
      * Set the language Imdb will use for titles, and some other localised data (e.g. tv episode air dates)
      * Any valid language code can be used here (e.g. en-US, de, pt-BR).
