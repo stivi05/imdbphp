@@ -1322,38 +1322,56 @@ public function mpaa($ratings = false)
         return $this->mpaas;
     }
 
+    // Опитайте ParentalGuide страницата
     $xpath = $this->getXpathPage("ParentalGuide");
+    if (!$xpath) {
+        // Fallback: опитайте главната страница
+        $xpath = $this->getXpathPage("Title");
+    }
+    
     if (!$xpath) {
         return [];
     }
 
-    // нови <li> селектори за сертификати
-    $cells = $xpath->query("//section[@data-testid='certificates']//li");
-    foreach ($cells as $cell) {
-        $countryNode = $xpath->query(".//span", $cell)->item(0);
-        $ratingNode  = $xpath->query(".//button", $cell)->item(0);
-
-        if ($countryNode && $ratingNode) {
-            $country = trim($countryNode->textContent);
-            $rating  = trim($ratingNode->textContent);
-
-            if ($ratings) {
-                $this->mpaas[$country][] = $rating;
-            } else {
-                $this->mpaas[$country] = $rating;
+    // СЕЛЕКТОРИ ЗА IMDB 2024-2025:
+    $selectors = [
+        // Селектор 1: Нова структура
+        "//section[@data-testid='certificates']//li[contains(., 'United States')]",
+        
+        // Селектор 2: В главната страница
+        "//a[contains(@href, 'parentalguide') and contains(text(), 'Rated')]",
+        
+        // Селектор 3: JSON-LD данни
+        "//script[@type='application/ld+json']",
+        
+        // Селектор 4: Стара структура
+        "//td[contains(text(), 'United States')]/following-sibling::td"
+    ];
+    
+    foreach ($selectors as $selector) {
+        $nodes = $xpath->query($selector);
+        
+        foreach ($nodes as $node) {
+            $text = $node->textContent;
+            
+            // Търсим рейтинги: G, PG, PG-13, R, NC-17
+            if (preg_match('/Rated\s+(G|PG|PG\-13|R|NC\-17)/i', $text, $matches)) {
+                $this->mpaas['United States'] = strtoupper($matches[1]);
+                return $this->mpaas;
+            }
+            
+            // Или в JSON-LD
+            if ($selector === "//script[@type='application/ld+json']") {
+                $json = json_decode($node->textContent, true);
+                if (!empty($json['contentRating'])) {
+                    $this->mpaas['United States'] = $json['contentRating'];
+                    return $this->mpaas;
+                }
             }
         }
     }
-
-    // fallback – ако не намерим нищо
-    if (empty($this->mpaas)) {
-        $node = $xpath->query("//section[@data-testid='certificates']//li/button")->item(0);
-        if ($node) {
-            $this->mpaas['USA'] = trim($node->nodeValue);
-        }
-    }
-
-    return $this->mpaas;
+    
+    return [];
 }
 
     /** Get the MPAA data (also known as PG or FSK) - including historical data
@@ -1384,38 +1402,14 @@ public function mpaa($ratings = false)
      * @return string reason why the movie was rated such
      * @see IMDB page / (TitlePage)
      */
-public function mpaa_reason(): string
+public function mpaa_reason()
 {
-    if (!empty($this->mpaa_justification)) {
-        return $this->mpaa_justification;
+    $mpaa = $this->mpaa();
+    if (!empty($mpaa['United States'])) {
+        return "Rated " . $mpaa['United States'];
     }
-
-    $xpath = $this->getXpathPage("Title");
-    if ($xpath) {
-        // опитваме да вземем rating от Parental Guide секцията
-        $reasonNode = $xpath->query("//section[@data-testid='mpaa-rating']//p | //section[@data-testid='mpaa-rating']//span")->item(0);
-        if ($reasonNode) {
-            $this->mpaa_justification = trim($reasonNode->textContent);
-        }
-
-        // fallback – US сертификати (PG, PG-13, R)
-        if (empty($this->mpaa_justification)) {
-            $ratingNode = $xpath->query("//section[@data-testid='title-details-section']//a[contains(@href,'certificates=US')]")->item(0);
-            if ($ratingNode) {
-                $this->mpaa_justification = trim($ratingNode->textContent);
-            }
-        }
-    }
-
-    // fallback към JSON-LD
-    if (empty($this->mpaa_justification) && preg_match('/<script type="application\/ld\+json">(.*?)<\/script>/s', $this->sSource, $matches)) {
-        $json = json_decode($matches[1], true);
-        if (!empty($json['contentRating'])) {
-            $this->mpaa_justification = $json['contentRating'];
-        }
-    }
-
-    return !empty($this->mpaa_justification) ? $this->mpaa_justification : 'Not yet rated';
+    
+    return "Not yet rated";
 }
 
     #----------------------------------------------[ Position in the "Top250" ]---
