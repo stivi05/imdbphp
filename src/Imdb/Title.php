@@ -1683,12 +1683,32 @@ private function matchImdbId($href)
      * @see IMDB page /fullcredits
      */
     
-public function cast($short = false)
+public function cast($short = false, $limit = 0)
 {
-    if ($short) return $this->cast_short();
-    if (!empty($this->credits_cast)) return $this->credits_cast;
-    return [];
+    // Определяме кой cache да използваме
+    $cache_key = $short ? 'credits_cast_short' : 'credits_cast';
+    
+    if ($short) {
+        // За кратък cast винаги използваме cast_short()
+        $cast_data = $this->cast_short();
+    } elseif (empty($this->credits_cast)) {
+        // За пълен cast, ако няма кеш - вземаме кратък и кешираме
+        $cast_data = $this->cast_short();
+        $this->credits_cast = $cast_data;
+    } else {
+        $cast_data = $this->credits_cast;
+    }
+    
+    // Прилагане на лимит
+    if ($limit > 0 && !empty($cast_data)) {
+        return array_slice($cast_data, 0, $limit);
+    }
+    
+    return $cast_data;
 }
+///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////
     
     protected function cast_short()
     {
