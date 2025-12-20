@@ -1683,16 +1683,15 @@ private function matchImdbId($href)
      * @see IMDB page /fullcredits
      */
     
-public function cast($short = false, $limit = 8)  // Default лимит 8!
+public function cast($short = false, $limit = 0)
 {
-    // Ако искаме повече от 12, тогава взимаме пълния cast
-    if ($limit > 12) {
-        $short = false;
-    }
+    $cast_data = [];
     
     if ($short || empty($this->credits_cast)) {
-        $cast_data = $this->cast_short($limit); // Подаваме лимита!
+        // Използваме cast_short() за кратък списък
+        $cast_data = $this->cast_short();
         
+        // Запазваме в credits_cast за бъдещи извиквания
         if (!$short) {
             $this->credits_cast = $cast_data;
         }
@@ -1700,68 +1699,84 @@ public function cast($short = false, $limit = 8)  // Default лимит 8!
         $cast_data = $this->credits_cast;
     }
     
-    // Вече cast_short() връща с лимит, но за всеки случай:
-    if ($limit > 0 && !empty($cast_data) && count($cast_data) > $limit) {
+    // Прилагане на лимит, ако е зададен
+    if ($limit > 0 && !empty($cast_data)) {
         return array_slice($cast_data, 0, $limit);
     }
     
     return $cast_data;
 }
-///////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////
     
-    protected function cast_short($limit = 8)
+protected function cast_short()
 {
     if (!empty($this->credits_cast_short)) {
-        return array_slice($this->credits_cast_short, 0, $limit);
+        return $this->credits_cast_short;
     }
 
-    // Бързо парсване само на първите X актьора
-    $html = $this->getPage("Title");
-    
-    if (empty($html)) {
-        return [];
+    $xpath = $this->getXpathPage("Title");
+    $nodes = $xpath->query("//div[@data-testid='title-cast-item']");
+    foreach ($nodes as $i => $node) {
+        $dir = array(
+            'imdb' => null,
+            'name' => null,
+            'name_alias' => null,
+            'credited' => true,
+            'role' => null,
+            'role_episodes' => null,
+            'role_start_year' => null,
+            'role_end_year' => null,
+            'role_other' => array(),
+            'thumb' => "",
+            'photo' => ""
+        );
+        $get_name_and_id = $xpath->query(".//a[@data-testid='title-cast-item__actor']", $node)->item(0);
+        $dir['imdb'] = preg_replace(
+            '/\/?name\/nm(\d+)[\/\?]+.*?$/is',
+            '$1',
+            $get_name_and_id->getAttribute("href")
+        );
+        $dir["name"] = trim($get_name_and_id->nodeValue);
+        if (empty($dir['name'])) {
+            continue;
+        }
+
+        $get_role = $xpath->query(".//a[@data-testid='cast-item-characters-link']/span[1]", $node);
+        if ($get_role != null) {
+            $dir["role"] = $get_role->item(0)->nodeValue;
+        }
+
+        $img = $xpath->query(".//img[@class='ipc-image']", $node)->item(0);
+        if ($img && $img->getAttribute("src") != null) {
+            $dir["thumb"] = trim($img->getAttribute("src"));
+            if (strpos($dir["thumb"], '._V1')) {
+                $dir["photo"] = preg_replace('#\._V1_.+?(\.\w+)$#is', '$1', $dir["thumb"]);
+            }
+        }
+        $get_role_episodes = $xpath->query(
+            ".//a[@data-testid='title-cast-item__eps-toggle']/span[1]/span[@data-testid='title-cast-item__episodes']",
+            $node
+        );
+        $get_role_start_year = $xpath->query(
+            ".//a[@data-testid='title-cast-item__eps-toggle']/span[1]/span[@data-testid='title-cast-item__tenure']",
+            $node
+        );
+        if ($get_role_episodes->item(0) != null) {
+            $dir["role_episodes"] = intval(trim(str_ireplace(
+                'episodes',
+                '',
+                $get_role_episodes->item(0)->nodeValue
+            )));
+        }
+        if ($get_role_start_year->item(0) != null) {
+            $year = explode('–', trim($get_role_start_year->item(0)->nodeValue));
+            $dir["role_start_year"] = intval($year[0]);
+            $dir["role_end_year"] = (isset($year[1]) ? intval($year[1]) : null);
+        }
+
+        $this->credits_cast_short[] = $dir;
     }
-    
-    // Намираме само cast секцията (не целия HTML)
-    if (preg_match('/<div[^>]*data-testid="title-cast"[^>]*>(.*?)<\/div><\/div><\/section>/s', $html, $section_match)) {
-        $cast_section = $section_match[1];
-    } else {
-        $cast_section = $html; // fallback
-    }
-    
-    $this->credits_cast_short = [];
-    
-    // Много бърз regex само за първите 8
-    $pattern = '/<a[^>]*data-testid="title-cast-item__actor"[^>]*href="\/name\/nm(\d+)\/"[^>]*>([^<]+)<\/a>.*?<img[^>]*src="([^"]*)"[^>]*>.*?data-testid="cast-item-characters-link"[^>]*>.*?>([^<]+)</s';
-    
-    preg_match_all($pattern, $cast_section, $matches, PREG_SET_ORDER);
-    
-    $count = 0;
-    foreach ($matches as $match) {
-        if ($count >= $limit) break;
-        
-        $this->credits_cast_short[] = [
-            'imdb' => $match[1],
-            'name' => trim($match[2]),
-            'thumb' => trim($match[3]),
-            'photo' => $this->cleanPhotoUrl($match[3]),
-            'role' => trim($match[4]),
-        ];
-        
-        $count++;
-    }
-    
+
     return $this->credits_cast_short;
-}
-
-protected function cleanPhotoUrl($thumb_url)
-{
-    if (strpos($thumb_url, '._V1') !== false) {
-        return preg_replace('/_V1_.*?\.(jpg|png|webp)$/', '.$1', $thumb_url);
-    }
-    return $thumb_url;
 }
 
     #---------------------------------------------------------------[ Writers ]---
